@@ -18,7 +18,7 @@ class Config:
     # Ana Stok Uygulaması API Bağlantısı
     # Local test: 'http://localhost:5000'
     # Canlı site: 'https://celmak.altikodtech.com.tr'
-    STOCK_API_URL = os.environ.get('STOCK_API_URL') or 'https://celmak.altikodtech.com.trdtech.com.tr'
+    STOCK_API_URL = os.environ.get('STOCK_API_URL') or 'https://celmak.altikodtech.com.tr'
     STOCK_API_KEY = os.environ.get('STOCK_API_KEY') or 'sk_live_123456789'  # Ana stok .env ile aynı
     
     # Local Mode (True = Demo data, False = Real API)
