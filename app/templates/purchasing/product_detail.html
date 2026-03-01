@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.get('name', 'Ürün') }} - Detay{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam"></i> {{ product.get('name', 'Ürün') }}</h2>
+    <div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickOrderModal">
+            <i class="bi bi-cart-plus"></i> Hızlı Sipariş
+        </button>
+        <a href="{{ url_for('purchasing.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Geri
+        </a>
+    </div>
+</div>
+
+<!-- Özet Kartlar -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div
+            class="card text-white {% if product.get('current_stock', 0) < product.get('minimum_stock', 0) %}bg-danger{% else %}bg-success{% endif %}">
+            <div class="card-body text-center">
+                <h6 class="card-title"><i class="bi bi-box-seam"></i> Mevcut Stok</h6>
+                <h2 class="mb-0">{{ product.get('current_stock', 0) }}</h2>
+                <small>{{ product.get('unit', 'Adet') }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center">
+                <h6 class="card-title"><i class="bi bi-exclamation-triangle"></i> Minimum Stok</h6>
+                <h2 class="mb-0">{{ product.get('minimum_stock', 0) }}</h2>
+                <small>{{ product.get('unit', 'Adet') }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body text-center">
+                <h6 class="card-title"><i class="bi bi-cart3"></i> Toplam Sipariş</h6>
+                <h2 class="mb-0">{{ orders|length }}</h2>
+                <small>adet sipariş</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center">
+                <h6 class="card-title"><i class="bi bi-currency-dollar"></i> Toplam Harcama</h6>
+                <h2 class="mb-0">₺{{ '{:,.0f}'.format(orders|sum(attribute='total_price')) }}</h2>
+                <small>tüm siparişler</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Ürün Bilgileri -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Ürün Detayları</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>Ürün Kodu:</strong></td>
+                        <td><code>{{ product.get('code', '-') }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ürün Adı:</strong></td>
+                        <td>{{ product.get('name', '-') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Kategori:</strong></td>
+                        <td><span class="badge bg-secondary">{{ product.get('category', 'Belirtilmemiş') }}</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Birim:</strong></td>
+                        <td>{{ product.get('unit', 'Adet') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Birim Fiyat:</strong></td>
+                        <td><strong class="text-success">₺{{ '{:,.2f}'.format(product.get('unit_price', 0)) }}</strong>
+                        </td>
+                    </tr>
+                    {% if product.get('supplier') %}
+                    <tr>
+                        <td><strong>Ana Tedarikçi:</strong></td>
+                        <td>{{ product.get('supplier') }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if product.get('last_order_date') %}
+                    <tr>
+                        <td><strong>Son Sipariş:</strong></td>
+                        <td>{{ product.get('last_order_date') }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        <!-- Stok Durum Grafiği -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Stok Durumu</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 250px;">
+                    <canvas id="stockChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aylık Sipariş Trendi -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0"><i class="bi bi-graph-up"></i> Son 6 Ay Sipariş Trendi</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 200px;">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sipariş Geçmişi ve İstatistikler -->
+    <div class="col-md-8">
+        <!-- Sipariş İstatistikleri -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card border-primary">
+                    <div class="card-body text-center">
+                        <i class="bi bi-cart-check text-primary" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Tamamlanan</h6>
+                        <h3 class="text-primary">{{ orders|selectattr('status', 'equalto', 'received')|list|length }}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-warning">
+                    <div class="card-body text-center">
+                        <i class="bi bi-clock text-warning" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Bekleyen</h6>
+                        <h3 class="text-warning">{{ orders|rejectattr('status', 'in', ['received',
+                            'cancelled'])|list|length }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-danger">
+                    <div class="card-body text-center">
+                        <i class="bi bi-x-circle text-danger" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">İptal</h6>
+                        <h3 class="text-danger">{{ orders|selectattr('status', 'equalto', 'cancelled')|list|length }}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-success">
+                    <div class="card-body text-center">
+                        <i class="bi bi-calculator text-success" style="font-size: 2rem;"></i>
+                        <h6 class="mt-2">Ort. Fiyat</h6>
+                        <h3 class="text-success">₺{{ '{:,.0f}'.format((orders|sum(attribute='unit_price') /
+                            orders|length) if orders|length > 0 else 0) }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sipariş Geçmişi Tablosu -->
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Sipariş Geçmişi ({{ orders|length }})</h6>
+                    <div>
+                        <button class="btn btn-sm btn-light" onclick="filterOrders('all')">Tümü</button>
+                        <button class="btn btn-sm btn-success" onclick="filterOrders('received')">Tamamlanan</button>
+                        <button class="btn btn-sm btn-warning" onclick="filterOrders('pending')">Bekleyen</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th width="120">Sipariş No</th>
+                                <th>Tedarikçi</th>
+                                <th>Miktar</th>
+                                <th>Birim Fiyat</th>
+                                <th>Toplam</th>
+                                <th>Durum</th>
+                                <th>Sipariş Tarihi</th>
+                                <th>Teslimat</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr data-status="{{ order.status }}">
+                                <td><code>{{ order.order_number }}</code></td>
+                                <td>
+                                    <i class="bi bi-building"></i> {{ order.supplier.name }}<br>
+                                    <small class="text-muted">{{ order.supplier.contact_person or '-' }}</small>
+                                </td>
+                                <td><strong>{{ order.quantity }}</strong> {{ order.unit_type }}</td>
+                                <td>₺{{ '{:,.2f}'.format(order.unit_price) }}</td>
+                                <td><strong class="text-success">₺{{ '{:,.2f}'.format(order.total_price) }}</strong>
+                                </td>
+                                <td>
+                                    {% if order.status == 'pending' %}
+                                    <span class="badge bg-warning"><i class="bi bi-hourglass"></i> Bekliyor</span>
+                                    {% elif order.status == 'approved' %}
+                                    <span class="badge bg-info"><i class="bi bi-check"></i> Onaylandı</span>
+                                    {% elif order.status == 'ordered' %}
+                                    <span class="badge bg-primary"><i class="bi bi-truck"></i> Yolda</span>
+                                    {% elif order.status == 'received' %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Teslim
+                                        Alındı</span>
+                                    {% elif order.status == 'cancelled' %}
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> İptal</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.created_at.strftime('%d.%m.%Y') }}</td>
+                                <td>
+                                    {% if order.actual_delivery_date %}
+                                    <span class="text-success">{{ order.actual_delivery_date.strftime('%d.%m.%Y')
+                                        }}</span>
+                                    {% elif order.expected_delivery_date %}
+                                    <span class="text-muted">{{ order.expected_delivery_date.strftime('%d.%m.%Y')
+                                        }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Bu ürün için henüz sipariş geçmişi bulunmuyor.
+                    <a href="#" data-bs-toggle="modal" data-bs-target="#quickOrderModal" class="alert-link">İlk siparişi
+                        oluşturun!</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hızlı Sipariş Modal -->
+<div class="modal fade" id="quickOrderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-cart-plus"></i> Hızlı Sipariş - {{ product.get('name', 'Ürün')
+                    }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('purchasing.new_order') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="product_code" value="{{ product.get('code', '') }}">
+                    <input type="hidden" name="product_name" value="{{ product.get('name', '') }}">
+                    <input type="hidden" name="unit_type" value="{{ product.get('unit', 'Adet') }}">
+                    <input type="hidden" name="unit_price" value="{{ product.get('unit_price', 0) }}">
+
+                    <div class="alert alert-warning">
+                        <strong>Mevcut Stok:</strong> {{ product.get('current_stock', 0) }} {{ product.get('unit',
+                        'Adet') }}<br>
+                        <strong>Minimum Stok:</strong> {{ product.get('minimum_stock', 0) }} {{ product.get('unit',
+                        'Adet') }}<br>
+                        <strong>Eksik:</strong> <span class="text-danger">{{ (product.get('minimum_stock', 0) -
+                            product.get('current_stock', 0)) if product.get('current_stock', 0) <
+                                product.get('minimum_stock', 0) else 0 }} {{ product.get('unit', 'Adet' ) }}</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Tedarikçi *</label>
+                        <select name="supplier_id" class="form-select" required>
+                            <option value="">Tedarikçi seçin...</option>
+                            {% for supplier in suppliers %}
+                            <option value="{{ supplier.id }}">
+                                {{ supplier.name }}
+                                {% if supplier.rating > 0 %}
+                                ({% for i in range(supplier.rating) %}⭐{% endfor %})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Sipariş Miktarı *</label>
+                        <input type="number" name="quantity" class="form-control"
+                            value="{{ ((product.get('minimum_stock', 0) - product.get('current_stock', 0)) * 1.2) | int }}"
+                            min="1" required>
+                        <small class="text-muted">Önerilen: {{ ((product.get('minimum_stock', 0) -
+                            product.get('current_stock', 0)) * 1.2) |
+                            int }} {{ product.get('unit', 'Adet') }}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Öncelik</label>
+                        <select name="priority" class="form-select">
+                            <option value="normal">Normal</option>
+                            <option value="high">Yüksek</option>
+                            <option value="urgent" {% if product.get('current_stock', 0) < product.get('minimum_stock',
+                                0) %}selected{% endif %}>Acil</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Beklenen Teslimat Tarihi</label>
+                        <input type="date" name="expected_delivery_date" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Not</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> Sipariş Oluştur
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    // Stok Grafiği
+    const stockCtx = document.getElementById('stockChart');
+    if (stockCtx) {
+        new Chart(stockCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Mevcut Stok', 'Minimum Stok'],
+                datasets: [{
+                    label: 'Miktar',
+                    data: [{{ product.get('current_stock', 0) }}, {{ product.get('minimum_stock', 0) }}],
+            backgroundColor: [
+                {% if product.get('current_stock', 0) < product.get('minimum_stock', 0) %}'rgba(220, 53, 69, 0.7)'{% else %} 'rgba(25, 135, 84, 0.7)'{% endif %},
+    'rgba(255, 193, 7, 0.7)'
+                    ],
+    borderColor: [
+        {% if product.get('current_stock', 0) < product.get('minimum_stock', 0) %}'rgba(220, 53, 69, 1)'{% else %} 'rgba(25, 135, 84, 1)'{% endif %},
+    'rgba(255, 193, 7, 1)'
+                    ],
+    borderWidth: 2
+                }]
+            },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+        });
+    }
+
+    // Sipariş Trendi Grafiği
+    const trendCtx = document.getElementById('trendChart');
+    if (trendCtx) {
+        {% set monthly_data = {} %}
+        {% for order in orders %}
+        {% set month = order.created_at.strftime('%Y-%m') %}
+        {% if month not in monthly_data %}
+        {% set _ = monthly_data.update({ month: 0 }) %}
+        {% endif %}
+        {% set _ = monthly_data.update({ month: monthly_data[month] + order.quantity }) %}
+        {% endfor %}
+
+        const monthlyLabels = {{ monthly_data.keys() | list | tojson
+    }};
+    const monthlyData = {{ monthly_data.values() | list | tojson }};
+
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: monthlyLabels,
+            datasets: [{
+                label: 'Sipariş Miktarı',
+                data: monthlyData,
+                borderColor: 'rgba(13, 110, 253, 1)',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+    // Sipariş Filtreleme
+    function filterOrders(status) {
+        const rows = document.querySelectorAll('#ordersTable tbody tr');
+        rows.forEach(row => {
+            if (status === 'all') {
+                row.style.display = '';
+            } else if (status === 'pending') {
+                row.style.display = ['pending', 'approved', 'ordered'].includes(row.dataset.status) ? '' : 'none';
+            } else {
+                row.style.display = row.dataset.status === status ? '' : 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

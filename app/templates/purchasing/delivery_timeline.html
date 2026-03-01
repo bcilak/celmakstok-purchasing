@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Teslimat Takvimi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar3"></i> Teslimat Takvimi</h2>
+    <a href="{{ url_for('purchasing.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Geri
+    </a>
+</div>
+
+<!-- Geciken Siparişler -->
+{% if overdue_orders %}
+<div class="alert alert-danger">
+    <h5><i class="bi bi-exclamation-triangle"></i> Geciken Teslimatlar ({{ overdue_orders|length }})</h5>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Sipariş No</th>
+                    <th>Ürün</th>
+                    <th>Miktar</th>
+                    <th>Beklenen Tarih</th>
+                    <th>Gecikme</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in overdue_orders %}
+                <tr>
+                    <td><code>{{ order.order_number }}</code></td>
+                    <td>{{ order.product_name }}</td>
+                    <td>{{ order.quantity }} {{ order.unit_type }}</td>
+                    <td>{{ order.expected_delivery_date.strftime('%d.%m.%Y') }}</td>
+                    <td class="text-danger">
+                        <strong>{{ (now() - order.expected_delivery_date).days }} gün</strong>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('purchasing.orders') }}" class="btn btn-sm btn-outline-primary">
+                            Detay
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Timeline -->
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Gelecek 30 Gün</h5>
+    </div>
+    <div class="card-body">
+        {% if orders %}
+        <div class="timeline">
+            {% set current_date = none %}
+            {% for order in orders %}
+            {% if current_date != order.expected_delivery_date.date() %}
+            {% set current_date = order.expected_delivery_date.date() %}
+            <div class="timeline-date mt-4 mb-3">
+                <h6 class="text-primary">
+                    <i class="bi bi-calendar-day"></i>
+                    {{ order.expected_delivery_date.strftime('%d %B %Y, %A') }}
+                </h6>
+            </div>
+            {% endif %}
+
+            <div class="timeline-item mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                <strong>{{ order.order_number }}</strong>
+                            </div>
+                            <div class="col-md-4">
+                                {{ order.product_name }}
+                            </div>
+                            <div class="col-md-2">
+                                <span class="badge bg-info">
+                                    {{ order.quantity }} {{ order.unit_type }}
+                                </span>
+                            </div>
+                            <div class="col-md-2">
+                                {% if order.status == 'approved' %}
+                                <span class="badge bg-warning">Onaylandı</span>
+                                {% elif order.status == 'ordered' %}
+                                <span class="badge bg-primary">Sipariş Verildi</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-2 text-end">
+                                <strong>₺{{ '{:,.2f}'.format(order.total_price) }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Gelecek 30 gün için bekleyen teslimat bulunmuyor.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Özet -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6>Toplam Bekleyen Teslimat</h6>
+                <h3>{{ orders|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h6>Geciken Teslimat</h6>
+                <h3>{{ overdue_orders|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6>Toplam Değer</h6>
+                <h3>₺{{ '{:,.0f}'.format(orders|sum(attribute='total_price')) }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+    .timeline-date {
+        border-left: 3px solid #0d6efd;
+        padding-left: 15px;
+    }
+
+    .timeline-item {
+        margin-left: 20px;
+        position: relative;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -23px;
+        top: 20px;
+        width: 10px;
+        height: 10px;
+        background: #0d6efd;
+        border-radius: 50%;
+    }
+</style>
+{% endblock %}

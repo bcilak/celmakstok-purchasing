@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Satın Alma Yönetimi{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ecf0f1;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #34495e;
+            padding: 20px 0;
+        }
+
+        .sidebar a {
+            color: #ecf0f1;
+            padding: 12px 20px;
+            display: block;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .sidebar a:hover,
+        .sidebar a.active {
+            background-color: var(--secondary-color);
+            padding-left: 30px;
+        }
+
+        .content-wrapper {
+            padding: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .badge-status {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+        }
+
+        .status-pending {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .status-approved {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .status-ordered {
+            background-color: #9b59b6;
+            color: white;
+        }
+
+        .status-received {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .status-cancelled {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .priority-low {
+            color: #95a5a6;
+        }
+
+        .priority-normal {
+            color: #3498db;
+        }
+
+        .priority-high {
+            color: #f39c12;
+        }
+
+        .priority-urgent {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
+                <i class="bi bi-cart-check"></i> Satın Alma Yönetimi
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                {% if current_user.is_authenticated %}
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i> {{ current_user.name }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                                    <i class="bi bi-person"></i> Profil
+                                </a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                    <i class="bi bi-box-arrow-right"></i> Çıkış
+                                </a></li>
+                        </ul>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            {% if current_user.is_authenticated %}
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <a href="{{ url_for('main.dashboard') }}"
+                    class="{% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="{{ url_for('purchasing.index') }}"
+                    class="{% if request.endpoint == 'purchasing.index' or request.endpoint == 'purchasing.product_detail' %}active{% endif %}">
+                    <i class="bi bi-exclamation-triangle"></i> Kritik Ürünler
+                </a>
+                <a href="{{ url_for('purchasing.orders') }}"
+                    class="{% if request.endpoint == 'purchasing.orders' %}active{% endif %}">
+                    <i class="bi bi-bag-check"></i> Siparişler
+                </a>
+                {% if current_user.role in ['admin', 'manager'] %}
+                <a href="{{ url_for('purchasing.approvals') }}"
+                    class="{% if request.endpoint == 'purchasing.approvals' %}active{% endif %}">
+                    <i class="bi bi-check2-square"></i> Onay Bekleyenler
+                </a>
+                <a href="{{ url_for('purchasing.manage_prices') }}"
+                    class="{% if request.endpoint == 'purchasing.manage_prices' %}active{% endif %}">
+                    <i class="bi bi-tags"></i> Fiyat Yönetimi
+                </a>
+                {% endif %}
+                <a href="{{ url_for('suppliers.index') }}"
+                    class="{% if request.endpoint and request.endpoint.startswith('suppliers') %}active{% endif %}">
+                    <i class="bi bi-building"></i> Tedarikçiler
+                </a>
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('admin_bp.manage_users') }}"
+                    class="{% if request.endpoint and request.endpoint.startswith('admin') %}active{% endif %}">
+                    <i class="bi bi-shield-lock"></i> Kullanıcı Yönetimi
+                </a>
+                {% endif %}
+                <hr style="border-color: #7f8c8d;">
+                <a href="{{ url_for('main.about') }}">
+                    <i class="bi bi-info-circle"></i> Hakkında
+                </a>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 content-wrapper">
+                {% else %}
+                <div class="col-12 content-wrapper">
+                    {% endif %}
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show"
+                        role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% endwith %}
+
+                    <!-- Page Content -->
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        {% block scripts %}{% endblock %}
+        {% block extra_js %}{% endblock %}
+</body>
+
+</html>

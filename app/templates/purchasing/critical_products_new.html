@@ -1,0 +1,1042 @@
+{% extends "base.html" %}
+
+{% block title %}Kritik Ürün Yönetimi{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --surface-color: #ffffff;
+        --background-color: #f8f9fa;
+        --border-color: rgba(0, 0, 0, 0.08);
+        --text-primary: #2b2b2b;
+        --text-secondary: #6c757d;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+    }
+
+    body {
+        background-color: var(--background-color);
+    }
+
+    .dashboard-header {
+        margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.urgent::before {
+        background: linear-gradient(90deg, #ff4d4d, #ff7675);
+    }
+
+    .kpi-card.total::before {
+        background: linear-gradient(90deg, #0984e3, #74b9ff);
+    }
+
+    .kpi-card.cost::before {
+        background: linear-gradient(90deg, #00b894, #55efc4);
+    }
+
+    .kpi-title {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        color: var(--text-primary);
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .kpi-icon {
+        position: absolute;
+        right: 1.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 3rem;
+        opacity: 0.05;
+        color: var(--text-primary);
+    }
+
+    .kpi-subtext {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    .filter-section {
+        background: var(--surface-color);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    }
+
+    .table-section {
+        background: var(--surface-color);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        overflow: hidden;
+    }
+
+    .table-header-bar {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        background: #fafbfa;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .custom-tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+
+    .custom-tabs .nav-link {
+        color: var(--text-secondary);
+        font-weight: 600;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-sm);
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .custom-tabs .nav-link:hover {
+        background: #f1f3f5;
+        color: var(--text-primary);
+    }
+
+    .custom-tabs .nav-link.active {
+        background: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+    }
+
+    .custom-tabs .nav-link.active .badge {
+        background-color: #0d6efd !important;
+        color: white !important;
+    }
+
+    .selection-toolbar {
+        background: var(--surface-color);
+        border: 1px solid #74b9ff;
+        border-radius: 50px;
+        padding: 0.25rem 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.3s, transform 0.3s;
+        pointer-events: none;
+    }
+
+    .selection-toolbar.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: all;
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table th {
+        background-color: #fafbfc;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        padding: 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .table td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .table tr:hover td {
+        background-color: #f8f9fa;
+    }
+
+    .product-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .product-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .product-code {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        background: #f1f3f5;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        display: inline-block;
+        width: fit-content;
+    }
+
+    .badge-priority {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.4rem;
+    }
+
+    .priority-urgent {
+        background-color: #dc3545;
+        box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+    }
+
+    .priority-high {
+        background-color: #fd7e14;
+        box-shadow: 0 0 0 3px rgba(253, 126, 20, 0.2);
+    }
+
+    .priority-normal {
+        background-color: #0dcaf0;
+        box-shadow: 0 0 0 3px rgba(13, 202, 240, 0.2);
+    }
+
+    .priority-low {
+        background-color: #6c757d;
+    }
+
+    .stock-pill {
+        display: inline-flex;
+        align-items: center;
+        background: #f8f9fa;
+        border: 1px solid var(--border-color);
+        border-radius: 50px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .stock-pill .current {
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stock-pill .divider {
+        margin: 0 0.3rem;
+        color: #adb5bd;
+    }
+
+    .stock-pill .min {
+        color: var(--text-secondary);
+    }
+
+    .shortage-text {
+        color: #dc3545;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+
+    .suggested-pill {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        font-weight: 700;
+        padding: 0.4rem 0.8rem;
+        border-radius: var(--radius-sm);
+        display: inline-block;
+    }
+
+    .price-col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .price-main {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .price-total {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #198754;
+    }
+
+    .price-sub {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .form-check-input {
+        width: 1.1em;
+        height: 1.1em;
+        cursor: pointer;
+        border-color: #ced4da;
+    }
+
+    .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .btn-icon-only {
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: var(--radius-sm);
+        transition: all 0.2s;
+    }
+
+    .btn-icon-only:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header Section -->
+<div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-cart3 text-primary me-2"></i>Satın Alma Yönetimi</h2>
+        <p class="text-secondary mb-0">Eksik stokları ve kritik ürünleri yönetin.</p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        {% if api_connected %}
+        {% if api_mode == 'local' %}
+        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm"><i class="bi bi-database me-1"></i>
+            Local Mode (Demo)</span>
+        {% else %}
+        <span class="badge bg-success px-3 py-2 rounded-pill shadow-sm"><i class="bi bi-link me-1"></i> API Bağlı</span>
+        {% endif %}
+        {% else %}
+        <span class="badge bg-danger px-3 py-2 rounded-pill shadow-sm"><i class="bi bi-x-circle me-1"></i> API
+            Hatası</span>
+        {% endif %}
+
+        <div class="dropdown">
+            <button class="btn btn-light border rounded-circle d-flex align-items-center justify-content-center"
+                type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width:40px;height:40px;">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="border-radius: var(--radius-md);">
+                <li><a class="dropdown-item py-2" href="{{ url_for('purchasing.delivery_timeline') }}"><i
+                            class="bi bi-calendar3 me-2 text-info"></i> Teslimat Takvimi</a></li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
+                <li>
+                    <h6 class="dropdown-header">Dışa Aktar</h6>
+                </li>
+                <li><a class="dropdown-item py-2" href="{{ url_for('purchasing.export_excel') }}"><i
+                            class="bi bi-file-earmark-excel me-2 text-success"></i> Excel Olarak İndir</a></li>
+                <li><a class="dropdown-item py-2" href="{{ url_for('purchasing.export_pdf') }}"><i
+                            class="bi bi-file-earmark-pdf me-2 text-danger"></i> PDF Olarak İndir</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="kpi-card urgent">
+            <i class="bi bi-exclamation-triangle kpi-icon"></i>
+            <h6 class="kpi-title">Acil İhtiyaç</h6>
+            <h2 class="kpi-value">{{ urgent_count }} <span
+                    style="font-size:1rem;font-weight:400;color:var(--text-secondary)">ürün</span></h2>
+            <div class="kpi-subtext">Bekleyen maliyet: <strong>₺{{ '{:,.0f}'.format(urgent_cost) }}</strong></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card total">
+            <i class="bi bi-box-seam kpi-icon"></i>
+            <h6 class="kpi-title">Kritik Stoklar</h6>
+            <h2 class="kpi-value">{{ products|length }} <span
+                    style="font-size:1rem;font-weight:400;color:var(--text-secondary)">ürün</span></h2>
+            <div class="kpi-subtext">Minimum limitin altında</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card cost">
+            <i class="bi bi-cash-stack kpi-icon"></i>
+            <h6 class="kpi-title">Tahmini Toplam Maliyet</h6>
+            <h2 class="kpi-value text-success">₺{{ '{:,.0f}'.format(total_cost) }}</h2>
+            <div class="kpi-subtext">Tüm kritik siparişler için</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="kpi-card bg-white p-3 h-100 justify-content-center"
+            style="box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+            <h6 class="kpi-title mb-2 text-center" style="font-size:0.75rem;">Kategori Dağılımı</h6>
+            <div style="height: 100px; position: relative; width: 100%;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Suggestions -->
+{% if suggestions %}
+<div class="row g-3 mb-4">
+    {% for suggestion in suggestions %}
+    <div class="col-md-6">
+        <div class="alert alert-{{ suggestion.type }} border-0 shadow-sm d-flex align-items-center mb-0 py-3 rounded-3"
+            role="alert">
+            <i class="bi bi-{{ suggestion.icon }} fs-3 me-3 opacity-75"></i>
+            <div>
+                <strong class="d-block mb-1 text-uppercase" style="font-size:0.75rem;">Sistem Önerisi</strong>
+                {{ suggestion.message }}
+            </div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="filter-section">
+    <form method="GET" class="row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label text-muted small fw-bold mb-1">Kategori</label>
+            <select name="category" class="form-select form-select-sm shadow-none" onchange="this.form.submit()">
+                <option value="">Tüm Kategoriler</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}" {% if cat==selected_category %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-muted small fw-bold mb-1">Öncelik</label>
+            <select name="priority" class="form-select form-select-sm shadow-none" onchange="this.form.submit()">
+                <option value="">Tümü</option>
+                <option value="urgent" {% if selected_priority=='urgent' %}selected{% endif %}>Acil</option>
+                <option value="high" {% if selected_priority=='high' %}selected{% endif %}>Yüksek</option>
+                <option value="normal" {% if selected_priority=='normal' %}selected{% endif %}>Normal</option>
+                <option value="low" {% if selected_priority=='low' %}selected{% endif %}>Düşük</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-muted small fw-bold mb-1">Sıralama</label>
+            <select name="sort" class="form-select form-select-sm shadow-none" onchange="this.form.submit()">
+                <option value="priority" {% if sort_by=='priority' %}selected{% endif %}>Öncelik</option>
+                <option value="shortage" {% if sort_by=='shortage' %}selected{% endif %}>Eksik Miktar</option>
+                <option value="cost" {% if sort_by=='cost' %}selected{% endif %}>Maliyet</option>
+                <option value="name" {% if sort_by=='name' %}selected{% endif %}>İsim</option>
+            </select>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label text-muted small fw-bold mb-1">Arama</label>
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" name="search" class="form-control border-start-0 shadow-none px-0"
+                    placeholder="Ürün adı veya kodu..." value="{{ search }}">
+                <button type="submit" class="btn btn-primary px-3">Ara</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Main Data Table -->
+<div class="table-section mb-5">
+    <div class="table-header-bar flex-wrap gap-3">
+        <!-- Tabs -->
+        <ul class="nav custom-tabs" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="critical-tab" data-bs-toggle="tab" type="button">
+                    Kritik Stoklar
+                    <span class="badge bg-secondary ms-1 rounded-pill" id="criticalTabCount">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="all-tab" data-bs-toggle="tab" type="button">
+                    Tüm Ürünler
+                    <span class="badge bg-secondary ms-1 rounded-pill" id="allTabCount">0</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- Selection Actions -->
+        <div class="selection-toolbar" id="selectionToolbar">
+            <div class="px-2 py-1">
+                <span class="fw-bold text-primary" id="selectedCount">0</span> <span
+                    class="text-muted small">seçildi</span>
+            </div>
+            <div class="vr"></div>
+            <div class="px-2 py-1">
+                <span class="small text-muted">Ara Toplam:</span>
+                <span class="fw-bold text-success" id="selectedCost">₺0</span>
+            </div>
+            <div class="vr"></div>
+            <button class="btn btn-sm btn-primary rounded-pill px-3 m-1" onclick="openBulkOrderModal()"
+                id="bulkOrderBtn">
+                <i class="bi bi-cart-plus me-1"></i> Toplu Sipariş
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th width="40" class="text-center"><input type="checkbox" id="selectAllTable"
+                            class="form-check-input"></th>
+                    <th>Ürün Bilgisi</th>
+                    <th class="text-center">Kategori</th>
+                    <th class="text-center">Mevcut / Min.</th>
+                    <th class="text-center">Eksik Miktar</th>
+                    <th class="text-center">Önerilen Sipariş</th>
+                    <th class="text-end">Birim Fiyat</th>
+                    <th class="text-end pe-4">Sipariş Maliyeti</th>
+                    <th width="90" class="text-center">İşlemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if products %}
+                {% for product in products %}
+                <tr class="product-row {% if product.is_critical %}is-critical{% endif %}"
+                    data-code="{{ product.code }}" data-name="{{ product.name }}" data-unit="{{ product.unit }}"
+                    data-unit-price="{{ product.unit_price }}" data-suggested="{{ product.suggested_order }}"
+                    data-cost="{{ product.total_with_vat }}" data-priority="{{ product.priority }}"
+                    data-is-critical="{{ 'true' if product.is_critical else 'false' }}">
+
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input product-checkbox">
+                    </td>
+
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <span class="badge-priority priority-{{ product.priority }}"
+                                title="{{ product.priority_label }}" data-bs-toggle="tooltip"></span>
+                            <div class="product-info ms-2">
+                                <span class="product-name">{{ product.name }}</span>
+                                <span class="product-code">{{ product.code }}</span>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark border">{{ product.category or '-' }}</span>
+                    </td>
+
+                    <td class="text-center">
+                        <div class="stock-pill">
+                            <span class="current {% if product.stock_percentage <= 20 %}text-danger{% endif %}">{{
+                                product.current_stock }}</span>
+                            <span class="divider">/</span>
+                            <span class="min">{{ product.minimum_stock }}</span>
+                        </div>
+                        <div class="text-muted mt-1" style="font-size:0.7rem;">{{ product.unit }}</div>
+                    </td>
+
+                    <td class="text-center">
+                        <span class="shortage-text">{{ product.shortage }}</span>
+                        <span class="text-muted small ms-1">{{ product.unit }}</span>
+                    </td>
+
+                    <td class="text-center">
+                        <span class="suggested-pill">{{ product.suggested_order }} <small>{{ product.unit
+                                }}</small></span>
+                    </td>
+
+                    <td class="text-end price-col">
+                        <span class="price-main">₺{{ '{:,.2f}'.format(product.unit_price) }}</span>
+                        <span class="price-sub">+%{{ '{:.0f}'.format(product.vat_rate) }} KDV</span>
+                    </td>
+
+                    <td class="text-end price-col pe-4">
+                        <span class="price-total estimated-cost" data-product="{{ product.code }}">₺{{
+                            '{:,.2f}'.format(product.total_with_vat) }}</span>
+                        <span class="price-sub">KDV Dahil</span>
+                    </td>
+
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center gap-1">
+                            <a href="{{ url_for('purchasing.new_order', product_code=product.code) }}"
+                                class="btn btn-light border btn-icon-only text-primary" title="Sipariş Ver"
+                                data-bs-toggle="tooltip">
+                                <i class="bi bi-cart"></i>
+                            </a>
+                            <a href="{{ url_for('purchasing.product_detail', product_code=product.code) }}"
+                                class="btn btn-light border btn-icon-only text-secondary" title="Detaylar"
+                                data-bs-toggle="tooltip">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="9" class="text-center py-5">
+                        <div class="text-muted">
+                            <i class="bi bi-check-circle display-4 text-success mb-3 d-block"></i>
+                            <h5>Şu anda kritik seviyede ürün bulunmuyor.</h5>
+                            <p>Tüm stoklar güvenli seviyede veya aradığınız kriterlere uygun ürün yok.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Bulk Order Modal -->
+<div class="modal fade" id="bulkOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius-md);">
+            <div class="modal-header bg-light border-bottom-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cart-plus text-primary me-2"></i>Akıllı Toplu Sipariş
+                </h5>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-4 py-4">
+                <div class="alert alert-info border-0 shadow-sm rounded-3 mb-4 d-flex align-items-center">
+                    <i class="bi bi-magic fs-4 me-3 text-info"></i>
+                    <div>
+                        <strong>Otomatik Gruplama:</strong> Ürünler için en uygun tedarikçiler bulunur ve siparişler
+                        tedarikçilere göre otomatik ayrılır.
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="text-secondary text-uppercase fw-bold" style="font-size:0.8rem; letter-spacing:0.5px;">
+                        Seçili Ürünler</h6>
+                    <div class="table-responsive border rounded-3">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Ürün</th>
+                                    <th class="text-center">Miktar</th>
+                                    <th>Tedarikçi</th>
+                                    <th class="text-end">Birim Fiyat</th>
+                                    <th class="text-end">Ara Toplam</th>
+                                </tr>
+                            </thead>
+                            <tbody id="selectedProductsList">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="supplierGrouping" class="mb-4" style="display:none;">
+                    <h6 class="text-secondary text-uppercase fw-bold" style="font-size:0.8rem; letter-spacing:0.5px;">
+                        Oluşacak Siparişler (Tedarikçi Bazlı)</h6>
+                    <div id="supplierGroupsList" class="d-flex flex-column gap-2"></div>
+                </div>
+
+                <div class="card border-success bg-success bg-opacity-10 rounded-3 mb-3 border-0">
+                    <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted mb-0 small text-uppercase fw-bold d-block">Genel Toplam</span>
+                            <h5 class="mb-0"><span id="modalTotalOrders" class="text-dark fw-bold">0</span> <span
+                                    class="text-muted" style="font-size:1rem;">ürün siparişi</span></h5>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted mb-0 small text-uppercase fw-bold d-block">Tahmini Tutar</span>
+                            <h4 class="text-success mb-0 fw-bold" id="modalTotalCost">₺0</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="unassignedProducts" class="alert alert-warning border-0 rounded-3 mb-0" style="display:none;">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-exclamation-triangle fs-5 me-2"></i>
+                        <strong>Dikkat: <span id="unassignedCount">0</span> ürün için tedarikçi bulunamadı.</strong>
+                    </div>
+                    <ul id="unassignedList" class="mb-0 ms-3 small"></ul>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top-0">
+                <button type="button" class="btn btn-outline-secondary px-4 rounded-pill"
+                    data-bs-dismiss="modal">İptal</button>
+                <button type="button" class="btn btn-primary px-4 rounded-pill shadow-sm" onclick="submitBulkOrder()">
+                    <i class="bi bi-check2-circle me-1"></i> Siparişleri Doğrula
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    // Tooltips Initialization
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Chart.js instance tracking
+    let myChart = null;
+
+    // Kategori Grafiği
+    {% if category_costs and category_costs | length > 0 %}
+    const ctx = document.getElementById('categoryChart');
+    if (ctx) {
+        myChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ category_costs.keys() | list | tojson | safe }},
+    datasets: [{
+        data: {{ category_costs.values() | list | tojson | safe }},
+        backgroundColor: ['#ff7675', '#74b9ff', '#55efc4', '#ffeaa7', '#a29bfe', '#fab1a0'],
+        borderWidth: 0,
+        hoverOffset: 4
+                }]
+            },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                    padding: 10,
+                        cornerRadius: 8,
+                            callbacks: {
+                    label: function(context) {
+                        let label = context.label || '';
+                        if (label) { label += ': '; }
+                        if (context.parsed !== null) {
+                            label += new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(context.parsed);
+                        }
+                        return label;
+                    }
+                }
+            }
+        },
+        cutout: '75%'
+    }
+        });
+    }
+    {% endif %}
+
+    let activeTab = 'critical';
+
+    document.getElementById('critical-tab').addEventListener('click', function () {
+        activeTab = 'critical';
+        this.classList.add('active');
+        document.getElementById('all-tab').classList.remove('active');
+        filterTable();
+    });
+
+    document.getElementById('all-tab').addEventListener('click', function () {
+        activeTab = 'all';
+        this.classList.add('active');
+        document.getElementById('critical-tab').classList.remove('active');
+        filterTable();
+    });
+
+    function filterTable() {
+        const rows = document.querySelectorAll('.product-row');
+        let criticalCount = 0;
+        let allCount = 0;
+
+        rows.forEach(row => {
+            allCount++;
+            const isCritical = row.dataset.isCritical === 'true';
+
+            if (isCritical) {
+                criticalCount++;
+            }
+
+            if (activeTab === 'critical') {
+                row.style.display = isCritical ? '' : 'none';
+            } else {
+                row.style.display = '';
+            }
+
+            if (row.style.display === 'none') {
+                const cb = row.querySelector('.product-checkbox');
+                if (cb && cb.checked) {
+                    cb.checked = false;
+                }
+            }
+        });
+
+        document.getElementById('criticalTabCount').textContent = criticalCount;
+        document.getElementById('allTabCount').textContent = allCount;
+
+        const selectAllCb = document.getElementById('selectAllTable');
+        if (selectAllCb) selectAllCb.checked = false;
+        updateSelection();
+    }
+
+    // Başlangıçta sayıları hesapla
+    filterTable();
+
+    // Seçim İşlemleri
+    let selectedProducts = [];
+
+    document.getElementById('selectAllTable').addEventListener('change', function () {
+        const checkboxes = document.querySelectorAll('.product-row:not([style*="display: none"]) .product-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+        });
+        updateSelection();
+    });
+
+    document.querySelectorAll('.product-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelection);
+    });
+
+    function updateSelection() {
+        selectedProducts = [];
+        let totalCost = 0;
+
+        document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
+            const row = cb.closest('.product-row');
+            const product = {
+                code: row.dataset.code,
+                name: row.dataset.name,
+                unit: row.dataset.unit,
+                unit_price: parseFloat(row.dataset.unitPrice),
+                suggested_order: parseInt(row.dataset.suggested),
+                priority: row.dataset.priority
+            };
+
+            const cost = parseFloat(row.dataset.cost || 0);
+            product.estimated_cost = cost;
+
+            selectedProducts.push(product);
+            totalCost += product.estimated_cost;
+        });
+
+        const toolbar = document.getElementById('selectionToolbar');
+        const countEl = document.getElementById('selectedCount');
+        const countCost = document.getElementById('selectedCost');
+
+        if (countEl && countCost && toolbar) {
+            countEl.textContent = selectedProducts.length;
+            countCost.textContent = '₺' + totalCost.toLocaleString('tr-TR', { maximumFractionDigits: 0 });
+
+            if (selectedProducts.length > 0) {
+                toolbar.classList.add('visible');
+            } else {
+                toolbar.classList.remove('visible');
+            }
+        }
+    }
+
+    function openBulkOrderModal() {
+        if (selectedProducts.length === 0) return;
+
+        const productList = selectedProducts.map(p => ({
+            product_code: p.code,
+            product_name: p.name,
+            quantity: p.suggested_order,
+            unit_type: p.unit,
+            priority: p.priority
+        }));
+
+        fetch('{{ url_for("purchasing.preview_bulk_order") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ products: productList })
+        })
+            .then(r => r.json())
+            .then(data => {
+                displayBulkOrderPreview(data);
+            })
+            .catch(error => {
+                console.error('Hata:', error);
+                displaySimpleBulkOrderPreview();
+            });
+
+        const modal = new bootstrap.Modal(document.getElementById('bulkOrderModal'));
+        modal.show();
+    }
+
+    function displayBulkOrderPreview(data) {
+        const list = document.getElementById('selectedProductsList');
+        list.innerHTML = '';
+        let totalCost = 0;
+        let totalOrders = 0;
+
+        if (data.grouped) {
+            Object.keys(data.grouped).forEach(supplierId => {
+                const supplierData = data.grouped[supplierId];
+                supplierData.products.forEach(p => {
+                    totalCost += p.total_price;
+                    totalOrders++;
+
+                    list.innerHTML += `
+                    <tr>
+                        <td><span class="fw-bold text-dark">${p.product_name}</span></td>
+                        <td class="text-center"><span class="badge bg-light text-dark border">${p.quantity} ${p.unit_type || 'Adet'}</span></td>
+                        <td><span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 py-1 px-2 rounded-pill"><i class="bi bi-building me-1"></i>${supplierData.supplier_name}</span></td>
+                        <td class="text-end text-muted small">₺${p.unit_price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td class="text-end fw-bold text-primary">₺${p.total_price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                    `;
+                });
+            });
+
+            const supplierGroupsList = document.getElementById('supplierGroupsList');
+            supplierGroupsList.innerHTML = '';
+            let supplierCount = 0;
+
+            Object.keys(data.grouped).forEach(supplierId => {
+                supplierCount++;
+                const supplierData = data.grouped[supplierId];
+                const supplierTotal = supplierData.products.reduce((sum, p) => sum + p.total_price, 0);
+
+                supplierGroupsList.innerHTML += `
+                <div class="border rounded-3 p-3 bg-light bg-opacity-50 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+                            <i class="bi bi-building fs-5"></i>
+                        </div>
+                        <div>
+                            <span class="fw-bold d-block fs-6 text-dark">${supplierData.supplier_name}</span>
+                            <span class="text-muted small">${supplierData.products.length} kalem ürün</span>
+                        </div>
+                    </div>
+                    <span class="fw-bold text-success" style="font-size:1.15rem;">₺${supplierTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+                `;
+            });
+
+            document.getElementById('supplierGrouping').style.display = 'block';
+        }
+
+        if (data.unassigned && data.unassigned.length > 0) {
+            const unassignedDiv = document.getElementById('unassignedProducts');
+            const unassignedList = document.getElementById('unassignedList');
+
+            unassignedDiv.style.display = 'block';
+            document.getElementById('unassignedCount').textContent = data.unassigned.length;
+
+            unassignedList.innerHTML = '';
+            data.unassigned.forEach(p => {
+                unassignedList.innerHTML += `<li>${p.product_name} - <span class="text-muted">${p.reason}</span></li>`;
+            });
+        } else {
+            document.getElementById('unassignedProducts').style.display = 'none';
+        }
+
+        document.getElementById('modalTotalOrders').textContent = totalOrders;
+        document.getElementById('modalTotalCost').textContent = '₺' + totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function displaySimpleBulkOrderPreview() {
+        const list = document.getElementById('selectedProductsList');
+        list.innerHTML = '';
+        let total = 0;
+
+        selectedProducts.forEach(p => {
+            total += p.estimated_cost;
+            list.innerHTML += `
+            <tr>
+                <td><span class="fw-bold text-dark">${p.name}</span></td>
+                <td class="text-center"><span class="badge bg-light text-dark border">${p.suggested_order} ${p.unit}</span></td>
+                <td><span class="badge bg-secondary rounded-pill py-1 px-2">Tedarikçi Atanamadı</span></td>
+                <td class="text-end text-muted small">₺${p.unit_price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td class="text-end fw-bold text-primary">₺${p.estimated_cost.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            `;
+        });
+
+        document.getElementById('supplierGrouping').style.display = 'none';
+        document.getElementById('unassignedProducts').style.display = 'none';
+        document.getElementById('modalTotalOrders').textContent = selectedProducts.length;
+        document.getElementById('modalTotalCost').textContent = '₺' + total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function submitBulkOrder() {
+        const productList = selectedProducts.map(p => ({
+            product_code: p.code,
+            product_name: p.name,
+            quantity: p.suggested_order,
+            unit_type: p.unit,
+            priority: p.priority,
+            unit_price: p.unit_price
+        }));
+
+        fetch('{{ url_for("purchasing.create_bulk_order") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ products: productList })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    let message = `${data.created_orders.length} sipariş oluşturuldu!\n\n`;
+                    message += `Toplam Maliyet: ₺${data.total_cost.toFixed(2)}\n`;
+                    message += `Tedarikçi Sayısı: ${data.supplier_count}\n\n`;
+
+                    if (data.warnings && data.warnings.length > 0) {
+                        message += 'Uyarılar:\n' + data.warnings.join('\n');
+                    }
+
+                    alert(message);
+                    location.reload();
+                } else {
+                    alert('Hata: ' + data.error);
+                }
+            })
+            .catch(err => {
+                alert('Bir hata oluştu: ' + err);
+            });
+    }
+</script>
+{% endblock %}

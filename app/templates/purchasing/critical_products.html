@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}Kritik Ürünler{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-exclamation-triangle text-danger"></i> Kritik Stok Seviyesindeki Ürünler</h2>
+    <div>
+        <a href="{{ url_for('purchasing.delivery_timeline') }}" class="btn btn-info me-2">
+            <i class="bi bi-calendar-event"></i> Teslimat Takvimi
+        </a>
+        <a href="{{ url_for('purchasing.export_excel') }}" class="btn btn-success me-2">
+            <i class="bi bi-file-earmark-excel"></i> Excel
+        </a>
+        <a href="{{ url_for('purchasing.export_pdf') }}" class="btn btn-danger me-2">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+        {% if api_connected %}
+        {% if api_mode == 'local' %}
+        <span class="badge bg-warning"><i class="bi bi-database"></i> Local Mode</span>
+        {% else %}
+        <span class="badge bg-success"><i class="bi bi-check-circle"></i> API Bağlı</span>
+        {% endif %}
+        {% else %}
+        <span class="badge bg-danger"><i class="bi bi-x-circle"></i> API Hatası</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Özet Kartlar -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-exclamation-triangle"></i> Acil Ürünler</h6>
+                <h2 class="mb-0">{{ summary.urgent_count }}</h2>
+                <small>Toplam Maliyet: ₺{{ '{:,.0f}'.format(summary.urgent_cost) }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-box-seam"></i> Kritik Ürünler</h6>
+                <h2 class="mb-0">{{ summary.total_count }}</h2>
+                <small>Takip edilen toplam ürün</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-currency-dollar"></i> Tahmini Maliyet</h6>
+                <h2 class="mb-0">₺{{ '{:,.0f}'.format(summary.total_cost) }}</h2>
+                <small>Toplam sipariş maliyeti</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-pie-chart"></i> Kategori Dağılımı</h6>
+                <canvas id="categoryChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Akıllı Öneriler -->
+{% if suggestions %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <h6 class="alert-heading"><i class="bi bi-lightbulb"></i> Akıllı Öneriler</h6>
+    <ul class="mb-0">
+        {% for suggestion in suggestions %}
+        <li>{{ suggestion }}</li>
+        {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- Gelişmiş Filtreler -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Kategori</label>
+                <select name="category" class="form-select" onchange="this.form.submit()">
+                    <option value="">Tüm Kategoriler</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if cat==selected_category %}selected{% endif %}>
+                        {{ cat }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Öncelik</label>
+                <select name="priority" class="form-select" onchange="this.form.submit()">
+                    <option value="">Tümü</option>
+                    <option value="urgent" {% if priority_filter=='urgent' %}selected{% endif %}>Acil</option>
+                    <option value="high" {% if priority_filter=='high' %}selected{% endif %}>Yüksek</option>
+                    <option value="normal" {% if priority_filter=='normal' %}selected{% endif %}>Normal</option>
+                    <option value="low" {% if priority_filter=='low' %}selected{% endif %}>Düşük</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Sıralama</label>
+                <select name="sort" class="form-select" onchange="this.form.submit()">
+                    <option value="priority" {% if sort_by=='priority' %}selected{% endif %}>Öncelik</option>
+                    <option value="shortage" {% if sort_by=='shortage' %}selected{% endif %}>Eksik Miktar</option>
+                    <option value="cost" {% if sort_by=='cost' %}selected{% endif %}>Maliyet</option>
+                    <option value="name" {% if sort_by=='name' %}selected{% endif %}>İsim</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Arama</label>
+                <input type="text" name="search" class="form-control" placeholder="Ürün adı veya kodu..."
+                    value="{{ search }}">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toplu İşlemler Paneli -->
+{% if products %}
+<div class="card mb-3 bg-light">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <input type="checkbox" id="selectAll" class="form-check-input me-2">
+                <label for="selectAll" class="form-check-label fw-bold">Tümünü Seç</label>
+                <span id="selectionInfo" class="ms-3 text-muted"></span>
+            </div>
+            <div>
+                <button id="bulkOrderBtn" class="btn btn-success" disabled data-bs-toggle="modal"
+                    data-bs-target="#bulkOrderModal">
+                    <i class="bi bi-cart-plus"></i> Toplu Sipariş Oluştur
+                </button>
+                <button id="bulkEmailBtn" class="btn btn-primary" disabled>
+                    <i class="bi bi-envelope"></i> E-posta Gönder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ürün Listesi -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" class="form-check-input" disabled>
+                        </th>
+                        <th>Öncelik</th>
+                        <th>Ürün Kodu</th>
+                        <th>Ürün Adı</th>
+                        <th>Kategori</th>
+                        <th>Mevcut Stok</th>
+                        <th>Minimum</th>
+                        <th>Eksik</th>
+                        <th>Önerilen</th>
+                        <th>Birim Fiyat</th>
+                        <th>Tahmini Maliyet</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input product-checkbox"
+                                data-product="{{ product.code }}" data-name="{{ product.name }}"
+                                data-quantity="{{ product.suggested_order }}" data-cost="{{ product.estimated_cost }}">
+                        </td>
+                        <td>
+                            {% if product.priority == 'urgent' %}
+                            <span class="badge bg-danger">{{ product.priority_label }}</span>
+                            {% elif product.priority == 'high' %}
+                            <span class="badge bg-warning">{{ product.priority_label }}</span>
+                            {% elif product.priority == 'normal' %}
+                            <span class="badge bg-primary">{{ product.priority_label }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ product.priority_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ product.code }}</code></td>
+                        <td><strong>{{ product.name }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ product.category or '-' }}</span></td>
+                        <td>
+                            <span class="badge bg-danger">
+                                {{ product.current_stock }} {{ product.unit }}
+                            </span>
+                        </td>
+                        <td>{{ product.minimum_stock }} {{ product.unit }}</td>
+                        <td class="text-danger fw-bold">{{ product.shortage }} {{ product.unit }}</td>
+                        <td class="text-success fw-bold">{{ product.suggested_order }} {{ product.unit }}</td>
+                        <td>₺{{ '{:,.2f}'.format(product.unit_price) }}</td>
+                        <td><strong>₺{{ '{:,.2f}'.format(product.estimated_cost) }}</strong></td>
+                        <td>
+                            <a href="{{ url_for('purchasing.product_detail', product_code=product.code) }}"
+                                class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3">
+    <i class="bi bi-info-circle"></i> Toplam <strong>{{ products|length }}</strong> kritik ürün listelendi.
+</div>
+{% else %}
+<div class="alert alert-success">
+    <i class="bi bi-check-circle"></i> Harika! Kritik stok seviyesinde ürün bulunmuyor.
+</div>
+{% endif %}
+
+<!-- Toplu Sipariş Modal -->
+<div class="modal fade" id="bulkOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-cart-plus"></i> Toplu Sipariş Oluştur</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulkOrderForm">
+                    <div class="mb-3">
+                        <label class="form-label">Tedarikçi Seçin</label>
+                        <select name="supplier_id" class="form-select" required id="supplierSelect">
+                            <option value="">Tedarikçi seçin...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Seçili Ürünler</label>
+                        <div id="selectedProductsList" class="border rounded p-3 bg-light"
+                            style="max-height: 300px; overflow-y: auto;">
+                            <!-- JavaScript ile doldurulacak -->
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <strong>Toplam Maliyet:</strong> <span id="modalTotalCost">₺0</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <button type="button" class="btn btn-success" id="confirmBulkOrder">
+                    <i class="bi bi-check-circle"></i> Sipariş Oluştur
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    // Kategori Grafiği
+    {% if category_costs %}
+    const ctx = document.getElementById('categoryChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ category_costs.keys() | list | tojson }},
+    datasets: [{
+        data: {{ category_costs.values() | list | tojson }},
+        backgroundColor: [
+        'rgba(255, 99, 132, 0.8)',
+        'rgba(54, 162, 235, 0.8)',
+        'rgba(255, 206, 86, 0.8)',
+        'rgba(75, 192, 192, 0.8)',
+        'rgba(153, 102, 255, 0.8)',
+        'rgba(255, 159, 64, 0.8)'
+    ]
+            }]
+        },
+    options: {
+        responsive: true,
+            maintainAspectRatio: false,
+                plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+    });
+}
+    {% endif %}
+
+    // Checkbox Seçimleri
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const productCheckboxes = document.querySelectorAll('.product-checkbox');
+    const bulkOrderBtn = document.getElementById('bulkOrderBtn');
+    const bulkEmailBtn = document.getElementById('bulkEmailBtn');
+    const selectionInfo = document.getElementById('selectionInfo');
+
+    function updateSelectionInfo() {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        const count = checked.length;
+        let totalCost = 0;
+
+        checked.forEach(cb => {
+            totalCost += parseFloat(cb.dataset.cost || 0);
+        });
+
+        if (count > 0) {
+            selectionInfo.innerHTML = `<strong>${count}</strong> ürün seçildi | Toplam: <strong>₺${totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</strong>`;
+            bulkOrderBtn.disabled = false;
+            bulkEmailBtn.disabled = false;
+        } else {
+            selectionInfo.innerHTML = '';
+            bulkOrderBtn.disabled = true;
+            bulkEmailBtn.disabled = true;
+        }
+    }
+
+    selectAllCheckbox.addEventListener('change', function () {
+        productCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateSelectionInfo();
+    });
+
+    productCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateSelectionInfo);
+    });
+
+    // Toplu Sipariş Modal
+    bulkOrderBtn.addEventListener('click', async function () {
+        // Tedarikçileri yükle
+        try {
+            const response = await fetch('{{ url_for("purchasing.get_suppliers") }}');
+            const suppliers = await response.json();
+            const supplierSelect = document.getElementById('supplierSelect');
+            supplierSelect.innerHTML = '<option value="">Tedarikçi seçin...</option>';
+            suppliers.forEach(s => {
+                supplierSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+            });
+        } catch (error) {
+            console.error('Tedarikçiler yüklenemedi:', error);
+        }
+
+        // Seçili ürünleri listele
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        const productsList = document.getElementById('selectedProductsList');
+        let totalCost = 0;
+        let html = '<ul class="list-unstyled mb-0">';
+
+        checked.forEach(cb => {
+            const cost = parseFloat(cb.dataset.cost || 0);
+            totalCost += cost;
+            html += `
+            <li class="mb-2">
+                <strong>${cb.dataset.name}</strong><br>
+                <small class="text-muted">Miktar: ${cb.dataset.quantity} | Maliyet: ₺${cost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</small>
+            </li>
+        `;
+        });
+        html += '</ul>';
+        productsList.innerHTML = html;
+        document.getElementById('modalTotalCost').textContent = `₺${totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`;
+    });
+
+    // Sipariş Oluştur
+    document.getElementById('confirmBulkOrder').addEventListener('click', async function () {
+        const supplierId = document.getElementById('supplierSelect').value;
+        if (!supplierId) {
+            alert('Lütfen bir tedarikçi seçin!');
+            return;
+        }
+
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        const products = Array.from(checked).map(cb => ({
+            code: cb.dataset.product,
+            name: cb.dataset.name,
+            quantity: cb.dataset.quantity
+        }));
+
+        try {
+            const response = await fetch('{{ url_for("purchasing.bulk_order") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    supplier_id: supplierId,
+                    products: products
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert(`✅ ${result.count} sipariş başarıyla oluşturuldu!`);
+                location.reload();
+            } else {
+                alert('❌ Hata: ' + result.error);
+            }
+        } catch (error) {
+            alert('❌ Sipariş oluşturulurken hata oluştu!');
+            console.error(error);
+        }
+    });
+
+    // E-posta Gönder
+    bulkEmailBtn.addEventListener('click', function () {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        const products = Array.from(checked).map(cb => cb.dataset.name).join(', ');
+
+        const subject = 'Kritik Stok Ürünleri - Sipariş Talebi';
+        const body = `Merhaba,\n\nAşağıdaki ürünler için acil sipariş verilmesi gerekmektedir:\n\n${products}\n\nTeşekkürler.`;
+
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    });
+</script>
+
+{% endblock %}

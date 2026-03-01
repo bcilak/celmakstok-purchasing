@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Kullanıcı Yönetimi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people"></i> Kullanıcı Yönetimi</h2>
+    <div>
+        <a href="{{ url_for('admin_bp.audit_logs') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-journal-text"></i> Detaylı Loglar
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Kullanıcılar Listesi -->
+    <div class="col-md-7">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                <h5 class="card-title fw-bold">Kayıtlı Kullanıcılar</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Kullanıcı</th>
+                                <th>Rol</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold">{{ user.name }}</div>
+                                    <div class="text-muted small">@{{ user.username }}</div>
+                                </td>
+                                <td>
+                                    {% if user.role == 'admin' %}
+                                    <span class="badge bg-danger rounded-pill px-3 py-2">Sistem Yöneticisi</span>
+                                    {% elif user.role == 'manager' %}
+                                    <span class="badge bg-warning text-dark rounded-pill px-3 py-2">Satın Alma
+                                        Müdürü</span>
+                                    {% else %}
+                                    <span class="badge bg-info text-dark rounded-pill px-3 py-2">Satın Alma
+                                        Uzmanı</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.is_active %}
+                                    <span
+                                        class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2"><i
+                                            class="bi bi-check-circle me-1"></i> Aktif</span>
+                                    {% else %}
+                                    <span
+                                        class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 rounded-pill px-3 py-2"><i
+                                            class="bi bi-slash-circle me-1"></i> Pasif</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                                        data-bs-toggle="modal" data-bs-target="#editUserModal{{ user.id }}">
+                                        Düzenle
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Edit Modal for User -->
+                            <div class="modal fade" id="editUserModal{{ user.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content border-0 mb-4 shadow rounded-4">
+                                        <div class="modal-header bg-light">
+                                            <h5 class="modal-title"><strong>{{ user.name }}</strong> kullanıcısını
+                                                düzenle</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                                aria-label="Close"></button>
+                                        </div>
+                                        <form action="{{ url_for('admin_bp.edit_user', user_id=user.id) }}"
+                                            method="POST">
+                                            <div class="modal-body p-4">
+                                                <div class="mb-3">
+                                                    <label
+                                                        class="form-label text-muted small fw-bold text-uppercase">Rol
+                                                        Ataması</label>
+                                                    <select name="role" class="form-select shadow-none">
+                                                        <option value="purchasing" {% if user.role=='purchasing'
+                                                            %}selected{% endif %}>Satın Alma Uzmanı (Normal)</option>
+                                                        <option value="manager" {% if user.role=='manager' %}selected{%
+                                                            endif %}>Satın Alma Müdürü</option>
+                                                        <option value="admin" {% if user.role=='admin' %}selected{%
+                                                            endif %}>Sistem Yöneticisi (Admin)</option>
+                                                    </select>
+                                                    <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>
+                                                        Tüm yetkilere sahip olan Admin yetkisi <strong>sistem
+                                                            yöneticileri</strong> içindir.</div>
+                                                </div>
+
+                                                <div
+                                                    class="mb-3 mt-4 form-check form-switch p-0 d-flex align-items-center justify-content-between border rounded-3 p-3 bg-light bg-opacity-50">
+                                                    <label class="form-check-label fw-bold"
+                                                        for="switchActive{{ user.id }}">Kullanıcı Hesabı Aktif
+                                                        Mi?</label>
+                                                    <input class="form-check-input fs-4 m-0 shadow-none cursor-pointer"
+                                                        type="checkbox" role="switch" name="is_active"
+                                                        id="switchActive{{ user.id }}" {% if user.is_active %}checked{%
+                                                        endif %}>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer border-0 pb-4 pe-4">
+                                                <button type="button" class="btn btn-light rounded-pill px-4 shadow-sm"
+                                                    data-bs-dismiss="modal">İptal</button>
+                                                <button type="submit"
+                                                    class="btn btn-primary rounded-pill px-4 shadow-sm">Kaydet</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Son Hareketler Özeti -->
+    <div class="col-md-5">
+        <div class="card shadow-sm border-0 mb-4" style="height: calc(100% - 1.5rem);">
+            <div
+                class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title fw-bold mb-0">Son Hareketler</h5>
+                <a href="{{ url_for('admin_bp.audit_logs') }}" class="small text-decoration-none">Tümünü Gör</a>
+            </div>
+            <div class="card-body">
+                <div class="timeline px-2">
+                    {% for log in activities %}
+                    <div class="d-flex mb-4 position-relative">
+                        <div class="me-3 mt-1 text-center" style="width: 25px;">
+                            <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center"
+                                style="width:30px;height:30px;">
+                                {% if log.action == 'login' %}
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                {% elif log.action == 'edit_user' %}
+                                <i class="bi bi-person-gear"></i>
+                                {% else %}
+                                <i class="bi bi-activity"></i>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="fw-bold fs-6">{{ log.user.name }}</div>
+                            <div class="text-secondary small">{{ log.details }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-clock me-1"></i>{{
+                                log.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-muted p-4 text-center">
+                        <i class="bi bi-clock-history fs-1 d-block mb-2"></i>
+                        Kayıtlı işlem bulunmuyor.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

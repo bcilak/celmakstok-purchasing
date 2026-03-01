@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Yeni Tedarikçi Ekle{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building-add"></i> Yeni Tedarikçi Ekle</h2>
+    <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Geri
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Tedarikçi Kodu *</label>
+                            <input type="text" name="code" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Firma Adı *</label>
+                            <input type="text" name="name" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Yetkili Kişi</label>
+                            <input type="text" name="contact_person" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Telefon</label>
+                            <input type="text" name="phone" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">E-posta</label>
+                        <input type="email" name="email" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Adres</label>
+                        <textarea name="address" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Vergi Numarası</label>
+                            <input type="text" name="tax_number" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Değerlendirme (0-5)</label>
+                            <select name="rating" class="form-select">
+                                <option value="0">Değerlendirilmedi</option>
+                                <option value="1">⭐ 1 Yıldız</option>
+                                <option value="2">⭐⭐ 2 Yıldız</option>
+                                <option value="3">⭐⭐⭐ 3 Yıldız</option>
+                                <option value="4">⭐⭐⭐⭐ 4 Yıldız</option>
+                                <option value="5">⭐⭐⭐⭐⭐ 5 Yıldız</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notlar</label>
+                        <textarea name="notes" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Tedarikçi Ekle
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-info-circle"></i> Bilgi</h6>
+                <p class="small mb-2">Yeni bir tedarikçi eklerken:</p>
+                <ul class="small">
+                    <li>Tedarikçi kodu benzersiz olmalıdır</li>
+                    <li>Firma adı zorunludur</li>
+                    <li>İletişim bilgileri tam olmalıdır</li>
+                    <li>Değerlendirme tecrübeye göre verilebilir</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

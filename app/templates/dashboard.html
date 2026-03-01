@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Satın Alma{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2"></i> Satın Alma Dashboard</h2>
+    <div>
+        {% if api_connected %}
+        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Stok API Bağlı</span>
+        {% else %}
+        <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Stok API Bağlantı Hatası</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- İstatistik Kartları -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Kritik Ürünler</h6>
+                    <h2 class="text-danger mb-0">{{ critical_count }}</h2>
+                </div>
+                <div class="fs-1 text-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+            </div>
+            <a href="{{ url_for('purchasing.index') }}" class="btn btn-sm btn-outline-danger mt-3 w-100">
+                Listele <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Bekleyen Siparişler</h6>
+                    <h2 class="text-warning mb-0">{{ pending_orders }}</h2>
+                </div>
+                <div class="fs-1 text-warning">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+            <a href="{{ url_for('purchasing.orders', status='pending') }}"
+                class="btn btn-sm btn-outline-warning mt-3 w-100">
+                Görüntüle <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Sipariş Edilen</h6>
+                    <h2 class="text-primary mb-0">{{ ordered_count }}</h2>
+                </div>
+                <div class="fs-1 text-primary">
+                    <i class="bi bi-bag-check"></i>
+                </div>
+            </div>
+            <a href="{{ url_for('purchasing.orders', status='ordered') }}"
+                class="btn btn-sm btn-outline-primary mt-3 w-100">
+                Takip Et <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Gecikmiş</h6>
+                    <h2 class="text-danger mb-0">{{ overdue_orders }}</h2>
+                </div>
+                <div class="fs-1 text-danger">
+                    <i class="bi bi-exclamation-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Kritik Ürünler ve Son Siparişler -->
+<div class="row mt-4">
+    <!-- Kritik Ürünler -->
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Kritik Ürünler (İlk 5)</h5>
+            </div>
+            <div class="card-body">
+                {% if critical_products %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Ürün</th>
+                                <th>Kategori</th>
+                                <th>Stok / Eksik</th>
+                                {% if current_user.role in ['admin', 'manager'] %}
+                                <th>Birim Fiyat</th>
+                                {% endif %}
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in critical_products[:5] %}
+                            <tr>
+                                <td>
+                                    <strong>{{ product.name }}</strong><br>
+                                    <small class="text-muted">{{ product.code }}</small>
+                                </td>
+                                <td>{{ product.category or '-' }}</td>
+                                <td>
+                                    Mevcut: <span class="badge bg-danger">
+                                        {{ product.current_stock }} {{ product.unit }}
+                                    </span>
+                                    <br>
+                                    Eksik: <span class="fw-bold">{{ product.shortage }} {{ product.unit }}</span>
+                                </td>
+                                {% if current_user.role in ['admin', 'manager'] %}
+                                <td style="width: 150px;">
+                                    <strong>₺{{ '{:,.0f}'.format(product.total_with_vat) }}</strong><br>
+                                    <small class="text-muted">₺{{ '{:,.0f}'.format(product.unit_price) }} (+%{{
+                                        '{:.0f}'.format(product.vat_rate) }} KDV)</small>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <a href="{{ url_for('purchasing.new_order', product_code=product.code) }}"
+                                        class="btn btn-sm btn-primary" title="Sipariş Ver">
+                                        <i class="bi bi-cart"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% if current_user.role in ['admin', 'manager'] %}
+                    <div class="mt-2 text-end">
+                        <a href="{{ url_for('purchasing.manage_prices') }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-tags"></i> Fiyatları Yönet
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="bi bi-check-circle"></i> Kritik stokta ürün yok!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Son Siparişler -->
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-bag"></i> Son Siparişler</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_orders %}
+                <div class="list-group">
+                    {% for order in recent_orders[:5] %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ order.product_name }}</h6>
+                                <small class="text-muted">{{ order.order_number }}</small>
+                            </div>
+                            <span class="badge-status status-{{ order.status }}">
+                                {{ order.status }}
+                            </span>
+                        </div>
+                        <div class="mt-2">
+                            <small>
+                                <i class="bi bi-building"></i> {{ order.supplier.name }}<br>
+                                <i class="bi bi-box"></i> {{ order.quantity }} {{ order.unit_type }}
+                            </small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Henüz sipariş yok.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Static Display No Scripts Required -->
+{% endblock %}

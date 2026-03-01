@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}{{ supplier.name }} - Detay{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> {{ supplier.name }}</h2>
+    <div>
+        <a href="{{ url_for('suppliers.edit', id=supplier.id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Düzenle
+        </a>
+        <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Geri
+        </a>
+    </div>
+</div>
+
+<!-- Sekmeler (Tabs) Navigasyonu -->
+<ul class="nav nav-tabs mb-4" id="supplierTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button"
+            role="tab" aria-controls="general" aria-selected="true">
+            <i class="bi bi-info-circle"></i> Genel Bilgiler
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="contacts-tab" data-bs-toggle="tab" data-bs-target="#contacts" type="button"
+            role="tab" aria-controls="contacts" aria-selected="false">
+            <i class="bi bi-people"></i> İlgili Kişiler ({{ supplier.contacts.count() }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button"
+            role="tab" aria-controls="documents" aria-selected="false">
+            <i class="bi bi-file-earmark-text"></i> Belgeler ({{ supplier.documents.count() }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="prices-tab" data-bs-toggle="tab" data-bs-target="#prices" type="button" role="tab"
+            aria-controls="prices" aria-selected="false">
+            <i class="bi bi-tag"></i> Fiyat Listesi ({{ price_list|length }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab"
+            aria-controls="orders" aria-selected="false">
+            <i class="bi bi-cart"></i> Sipariş Geçmişi ({{ orders|length }})
+        </button>
+    </li>
+</ul>
+
+<!-- Sekme İçerikleri -->
+<div class="tab-content" id="supplierTabsContent">
+
+    <!-- 1. GENEL BİLGİLER SEKME -->
+    <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-building"></i> Kurumsal Bilgiler</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless table-sm">
+                            <tr>
+                                <th width="30%">Tedarikçi Kodu:</th>
+                                <td><code>{{ supplier.code }}</code></td>
+                            </tr>
+                            <tr>
+                                <th>Firma Adı:</th>
+                                <td><strong>{{ supplier.name }}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>Kategori:</th>
+                                <td><span class="badge bg-secondary">{{ supplier.supplier_category or 'Belirtilmemiş'
+                                        }}</span></td>
+                            </tr>
+                            <tr>
+                                <th>Statü:</th>
+                                <td>
+                                    {% if supplier.status == 'pending' %} <span class="badge bg-warning">Onay
+                                        Bekliyor</span>
+                                    {% elif supplier.status == 'approved' %} <span class="badge bg-success">Onaylı
+                                        Tedarikçi</span>
+                                    {% elif supplier.status == 'blacklisted' %} <span class="badge bg-danger">Kara
+                                        Liste</span>
+                                    {% else %} <span class="badge bg-secondary">Bilinmiyor</span> {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Değerlendirme:</th>
+                                <td>
+                                    {% if supplier.rating > 0 %}
+                                    {% for i in range(supplier.rating) %}⭐{% endfor %}
+                                    {% else %}
+                                    <span class="text-muted">Değerlendirilmedi</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Kayıt Tarihi:</th>
+                                <td>{{ supplier.created_at.strftime('%d.%m.%Y') }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="bi bi-bank"></i> Finansal ve Yasal Bilgiler</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless table-sm">
+                            <tr>
+                                <th width="30%">Vergi Dairesi:</th>
+                                <td>{{ supplier.tax_office or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Vergi Numarası:</th>
+                                <td>{{ supplier.tax_number or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>IBAN:</th>
+                                <td><code>{{ supplier.iban or '-' }}</code></td>
+                            </tr>
+                            <tr>
+                                <th>Ödeme Vadesi:</th>
+                                <td>{{ supplier.payment_terms or '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-geo-alt"></i> İletişim & Adres (Ana)</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless table-sm">
+                            <tr>
+                                <th width="30%">Telefon:</th>
+                                <td>{{ supplier.phone or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>E-Posta:</th>
+                                <td>{{ supplier.email or '-' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Adres:</th>
+                                <td>{{ supplier.address or '-' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if supplier.notes %}
+        <div class="card border-info mb-4">
+            <div class="card-header bg-info-subtle text-info-emphasis">
+                <i class="bi bi-sticky"></i> Genel Notlar
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ supplier.notes }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 2. İLGİLİ KİŞİLER SEKME -->
+    <div class="tab-pane fade" id="contacts" role="tabpanel" aria-labelledby="contacts-tab">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                <h6 class="mb-0"><i class="bi bi-people"></i> Firma İletişim Kişileri</h6>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#addContactModal">
+                    <i class="bi bi-plus-circle"></i> Yeni Kişi Ekle
+                </button>
+            </div>
+            <div class="card-body">
+                {% set contacts = supplier.contacts.all() %}
+                {% if contacts %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>İsim Soyisim</th>
+                                <th>Unvan / Departman</th>
+                                <th>Telefon</th>
+                                <th>E-Posta</th>
+                                <th>Statü</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for contact in contacts %}
+                            <tr>
+                                <td>
+                                    <strong>{{ contact.name }}</strong>
+                                    {% if contact.is_primary %}
+                                    <span class="badge bg-success ms-1"><i class="bi bi-star-fill"></i> Birincil</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ contact.title or '-' }}</td>
+                                <td>{{ contact.phone or '-' }}</td>
+                                <td><a href="mailto:{{ contact.email }}">{{ contact.email or '-' }}</a></td>
+                                <td>
+                                    {% if contact.notes %}
+                                    <button type="button" class="btn btn-sm btn-link" data-bs-toggle="tooltip"
+                                        title="{{ contact.notes }}">
+                                        <i class="bi bi-info-circle"></i> Not
+                                    </button>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <form method="POST"
+                                        action="{{ url_for('suppliers.delete_contact', id=supplier.id, contact_id=contact.id) }}"
+                                        style="display:inline;"
+                                        onsubmit="return confirm('Bu ilgili kişiyi silmek istediğinize emin misiniz?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i
+                                                class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-secondary mb-0">
+                    Henüz bu tedarikçi için ilgili kişi eklenmemiş. "Yeni Kişi Ekle" butonunu kullanarak
+                    ekleyebilirsiniz.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. BELGELER SEKME -->
+    <div class="tab-pane fade" id="documents" role="tabpanel" aria-labelledby="documents-tab">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                <h6 class="mb-0"><i class="bi bi-file-earmark-pdf"></i> Tedarikçi Belgeleri ve Sözleşmeler</h6>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#uploadDocumentModal">
+                    <i class="bi bi-upload"></i> Belge Yükle
+                </button>
+            </div>
+            <div class="card-body">
+                {% set documents = supplier.documents.all() %}
+                {% if documents %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Belge Adı</th>
+                                <th>Türü</th>
+                                <th>Yüklenme Tarihi</th>
+                                <th>Geçerlilik Bitiş</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td><strong>{{ doc.title }}</strong></td>
+                                <td><span class="badge bg-secondary">{{ doc.document_type }}</span></td>
+                                <td>{{ doc.upload_date.strftime('%d.%m.%Y') }}</td>
+                                <td>{{ doc.valid_until.strftime('%d.%m.%Y') if doc.valid_until else 'Süresiz' }}</td>
+                                <td>
+                                    {% if doc.valid_until %}
+                                    {% if doc.is_expired %}
+                                    <span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Süresi
+                                        Dolmuş</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Geçerli</span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-success">Geçerli</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('suppliers.download_document', id=supplier.id, doc_id=doc.id) }}"
+                                        class="btn btn-sm btn-outline-primary" target="_blank">
+                                        <i class="bi bi-download"></i> İndir
+                                    </a>
+                                    <form method="POST"
+                                        action="{{ url_for('suppliers.delete_document', id=supplier.id, doc_id=doc.id) }}"
+                                        style="display:inline;"
+                                        onsubmit="return confirm('Bu belgeyi silmek istediğinize emin misiniz? Dosya kalıcı olarak silinecek.')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i
+                                                class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-secondary mb-0">
+                    Henüz belge yüklenmemiş. Şartnameler, kalite sertifikaları veya sözleşmeleri yükleyebilirsiniz.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. FİYAT LİSTESİ SEKME -->
+    <div class="tab-pane fade" id="prices" role="tabpanel" aria-labelledby="prices-tab">
+        <div class="card">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-tag"></i> Özel Ürün Fiyat Listesi</h6>
+                <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#addPriceModal">
+                    <i class="bi bi-plus-circle"></i> Fiyat Ekle
+                </button>
+            </div>
+            <div class="card-body">
+                {% if price_list %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ürün Kodu</th>
+                                <th>Birim Fiyat</th>
+                                <th>Para Birimi</th>
+                                <th>Min. Sipariş</th>
+                                <th>Teslimat Süresi</th>
+                                <th>Geçerlilik</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for price in price_list %}
+                            <tr {% if not price.is_active %}class="table-secondary" {% endif %}>
+                                <td><code>{{ price.product_code }}</code></td>
+                                <td><strong>{{ '{:,.2f}'.format(price.unit_price) }}</strong></td>
+                                <td>{{ price.currency }}</td>
+                                <td>{{ price.minimum_order_quantity or '-' }}</td>
+                                <td>{{ price.lead_time_days or '-' }} gün</td>
+                                <td>
+                                    {% if price.valid_from and price.valid_until %}
+                                    <small>{{ price.valid_from.strftime('%d.%m.%Y') }} - {{
+                                        price.valid_until.strftime('%d.%m.%Y') }}</small>
+                                    {% else %}
+                                    <span class="text-muted"><small>Belirtilmemiş</small></span>
+                                    {% endif %}
+                                    {% if not price.is_active %}
+                                    <br><span class="badge bg-secondary">Pasif</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                        onclick="editPrice({{ price.id }}, '{{ price.product_code }}', {{ price.unit_price }}, '{{ price.currency }}', {{ price.minimum_order_quantity or 'null' }}, {{ price.lead_time_days or 'null' }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('suppliers.delete_price', id=price.id) }}"
+                                        style="display:inline;"
+                                        onsubmit="return confirm('Bu fiyatı silmek istediğinize emin misiniz?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-secondary">
+                    <i class="bi bi-info-circle"></i> Bu tedarikçi için özel fiyat/iskonto tanımlanmamış.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. SİPARİŞ GEÇMİŞİ SEKME -->
+    <div class="tab-pane fade" id="orders" role="tabpanel" aria-labelledby="orders-tab">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-cart"></i> Satınalma Sipariş Geçmişi</h6>
+            </div>
+            <div class="card-body">
+                {% if orders %}
+                <div class="table-responsive mb-4">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Sipariş No</th>
+                                <th>Ürün</th>
+                                <th>Miktar</th>
+                                <th>Tutar</th>
+                                <th>Durum</th>
+                                <th>Tarih</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td><code>{{ order.order_number }}</code></td>
+                                <td>{{ order.product_name }}</td>
+                                <td>{{ order.quantity }} {{ order.unit_type }}</td>
+                                <td>{{ '{:,.2f}'.format(order.total_price) }} {{ order.currency }}</td>
+                                <td>
+                                    {% if order.status == 'pending' %} <span
+                                        class="badge bg-warning text-dark">Bekliyor</span>
+                                    {% elif order.status == 'approved' %} <span class="badge bg-info">Onaylandı</span>
+                                    {% elif order.status == 'ordered' %} <span class="badge bg-primary">Sipariş
+                                        Edildi</span>
+                                    {% elif order.status == 'received' %} <span class="badge bg-success">Teslim
+                                        Alındı</span>
+                                    {% elif order.status == 'cancelled' %} <span class="badge bg-danger">İptal
+                                        Edildi</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.created_at.strftime('%d.%m.%Y') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Özet Kartları -->
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-light border-0">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted text-uppercase mb-2">Toplam Sipariş</h6>
+                                <h3 class="mb-0">{{ orders|length }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light border-0">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted text-uppercase mb-2">Tamamlanan (Teslim Alınan)</h6>
+                                <h3 class="mb-0 text-success">{{ orders|selectattr('status', 'equalto',
+                                    'received')|list|length }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light border-0">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted text-uppercase mb-2">Bekleyen (Yoldaki)</h6>
+                                <h3 class="mb-0 text-primary">{{ orders|selectattr('status', 'in', ['approved',
+                                    'ordered'])|list|length }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-secondary">
+                    <i class="bi bi-info-circle"></i> Bu tedarikçiye ait herhangi bir satın alma siparişi bulunamadı.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modallar -->
+{% include 'suppliers/price_modal.html' %}
+
+<!-- Yeni Kişi Ekle Modal -->
+<div class="modal fade" id="addContactModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('suppliers.add_contact', id=supplier.id) }}" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">Yeni İlgili Kişi Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">İsim Soyisim *</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unvan / Departman</label>
+                        <input type="text" name="title" class="form-control" placeholder="Örn: Muhasebe Sorumlusu">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Telefon</label>
+                            <input type="text" name="phone" class="form-control">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">E-Posta</label>
+                            <input type="email" name="email" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_primary" name="is_primary" value="True">
+                        <label class="form-check-label" for="is_primary">Birincil İletişim Kişisi (Ana Yetkili)</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Özel Notlar</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Yeni Belge Yükle Modal -->
+<div class="modal fade" id="uploadDocumentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('suppliers.upload_document', id=supplier.id) }}" method="POST"
+                enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Yeni Belge / Sertifika Yükle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Dosya Seç *</label>
+                        <input type="file" name="document" class="form-control" required>
+                        <div class="form-text">Maksimum dosya boyutu: 16MB. Desteklenen türler: PDF, resim, word vb.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Belge Başlığı</label>
+                        <input type="text" name="title" class="form-control"
+                            placeholder="Boş bırakırsanız dosya adı kullanılır">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Belge Türü</label>
+                            <select name="document_type" class="form-select">
+                                <option value="Sözleşme">Satınalma Sözleşmesi</option>
+                                <option value="Sertifika">Kalite Sertifikası (ISO vb)</option>
+                                <option value="İmza Sirküleri">İmza Sirküleri</option>
+                                <option value="Vergi Levhası">Vergi Levhası</option>
+                                <option value="Gizlilik">Gizlilik Sözleşmesi (NDA)</option>
+                                <option value="Diğer" selected>Diğer / Genel</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Geçerlilik Bitiş Tarihi</label>
+                            <input type="date" name="valid_until" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notlar / Açıklama</label>
+                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary">Yükle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

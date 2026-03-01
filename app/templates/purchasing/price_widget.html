@@ -1,0 +1,49 @@
+<!-- Tedarikçi Fiyat Karşılaştırması Widget -->
+{% if price_suggestions and price_suggestions.supplier_comparison %}
+<div class="card border-warning mt-3">
+    <div class="card-header bg-warning text-dark">
+        <h6 class="mb-0"><i class="bi bi-bar-chart"></i> Tedarikçi Fiyat Karşılaştırması</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+            {% for comp in price_suggestions.supplier_comparison %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ comp.supplier_name }}</strong>
+                        <br>
+                        <small class="text-muted">
+                            {% if comp.lead_time_days %}
+                            <i class="bi bi-clock"></i> {{ comp.lead_time_days }} gün
+                            {% endif %}
+                            {% if comp.min_order_quantity %}
+                            | <i class="bi bi-box-seam"></i> Min: {{ comp.min_order_quantity }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <h5 class="mb-0 text-success">{{ '{:,.2f}'.format(comp.unit_price) }}</h5>
+                        <small class="text-muted">{{ comp.currency }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    function useSuggestedPrice(price) {
+        document.getElementById('unit_price_input').value = price.toFixed(2);
+    }
+
+    function updatePriceSuggestion() {
+        const productCode = document.getElementById('product_code').value;
+        const supplierId = document.getElementById('supplier_select').value;
+
+        if (productCode && supplierId) {
+            console.log('Fiyat güncelle:', productCode, supplierId);
+        }
+    }
+</script>

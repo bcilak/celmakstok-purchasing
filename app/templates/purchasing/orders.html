@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Siparişler{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bag-check"></i> Satın Alma Siparişleri</h2>
+    <a href="{{ url_for('purchasing.new_order') }}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Yeni Sipariş
+    </a>
+</div>
+
+<!-- Filtreler -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Durum</label>
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="">Tüm Durumlar</option>
+                    <option value="pending" {% if status_filter=='pending' %}selected{% endif %}>Bekliyor</option>
+                    <option value="approved" {% if status_filter=='approved' %}selected{% endif %}>Onaylandı</option>
+                    <option value="ordered" {% if status_filter=='ordered' %}selected{% endif %}>Sipariş Edildi</option>
+                    <option value="received" {% if status_filter=='received' %}selected{% endif %}>Teslim Alındı
+                    </option>
+                    <option value="cancelled" {% if status_filter=='cancelled' %}selected{% endif %}>İptal</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Tedarikçi</label>
+                <select name="supplier" class="form-select" onchange="this.form.submit()">
+                    <option value="">Tüm Tedarikçiler</option>
+                    {% for supplier in suppliers %}
+                    <option value="{{ supplier.id }}" {% if supplier_filter==supplier.id|string %}selected{% endif %}>
+                        {{ supplier.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Sipariş Listesi -->
+{% if orders.items %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Sipariş No</th>
+                        <th>Ürün</th>
+                        <th>Tedarikçi</th>
+                        <th>Miktar</th>
+                        <th>Tutar</th>
+                        <th>Tarih</th>
+                        <th>Teslim</th>
+                        <th>Durum</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders.items %}
+                    <tr>
+                        <td><code>{{ order.order_number }}</code></td>
+                        <td>
+                            <strong>{{ order.product_name }}</strong><br>
+                            <small class="text-muted">{{ order.product_code }}</small>
+                        </td>
+                        <td>{{ order.supplier.name }}</td>
+                        <td>{{ order.quantity }} {{ order.unit_type }}</td>
+                        <td>
+                            {{ order.total_price|round(2) }} {{ order.currency }}
+                        </td>
+                        <td>{{ order.order_date.strftime('%d.%m.%Y') }}</td>
+                        <td>
+                            {% if order.expected_delivery_date %}
+                            {{ order.expected_delivery_date.strftime('%d.%m.%Y') }}
+                            {% if order.is_overdue %}
+                            <span class="badge bg-danger">Gecikti</span>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Bekliyor</span>
+                            {% elif order.status == 'approved' %}
+                            <span class="badge bg-info">Onaylandı</span>
+                            {% elif order.status == 'ordered' %}
+                            <span class="badge bg-primary">Sipariş Verildi</span>
+                            {% elif order.status == 'received' %}
+                            <span class="badge bg-success">Teslim Alındı</span>
+                            {% elif order.status == 'cancelled' %}
+                            <span class="badge bg-danger">İptal</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ order.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-gear"></i> Durum
+                                </button>
+                                <ul class="dropdown-menu">
+                                    {% if order.status == 'pending' %}
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="approved">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-check-circle text-info"></i> Onayla
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="cancelled">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-x-circle"></i> İptal Et
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% elif order.status == 'approved' %}
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="ordered">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-truck text-primary"></i> Sipariş Ver
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="cancelled">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-x-circle"></i> İptal Et
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% elif order.status == 'ordered' %}
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="received">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-box-seam text-success"></i> Teslim Alındı
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="cancelled">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-x-circle"></i> İptal Et
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% elif order.status == 'received' %}
+                                    <li><span class="dropdown-item-text text-success"><i class="bi bi-check-circle"></i>
+                                            Tamamlandı</span></li>
+                                    {% elif order.status == 'cancelled' %}
+                                    <li>
+                                        <form method="POST"
+                                            action="{{ url_for('purchasing.update_order_status', id=order.id) }}"
+                                            style="display: inline;">
+                                            <input type="hidden" name="status" value="pending">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-arrow-counterclockwise text-warning"></i> Yeniden Aç
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Sayfalama -->
+{% if orders.pages > 1 %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if orders.has_prev %}
+        <li class="page-item">
+            <a class="page-link"
+                href="{{ url_for('purchasing.orders', page=orders.prev_num, status=status_filter, supplier=supplier_filter) }}">
+                Önceki
+            </a>
+        </li>
+        {% endif %}
+
+        {% for page_num in orders.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if page_num %}
+        <li class="page-item {% if page_num == orders.page %}active{% endif %}">
+            <a class="page-link"
+                href="{{ url_for('purchasing.orders', page=page_num, status=status_filter, supplier=supplier_filter) }}">
+                {{ page_num }}
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        {% endif %}
+        {% endfor %}
+
+        {% if orders.has_next %}
+        <li class="page-item">
+            <a class="page-link"
+                href="{{ url_for('purchasing.orders', page=orders.next_num, status=status_filter, supplier=supplier_filter) }}">
+                Sonraki
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Henüz sipariş bulunmuyor.
+</div>
+{% endif %}
+{% endblock %}

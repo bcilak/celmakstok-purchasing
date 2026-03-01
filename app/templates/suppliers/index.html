@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Tedarikçiler{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building"></i> Tedarikçiler</h2>
+    <a href="{{ url_for('suppliers.add') }}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Yeni Tedarikçi
+    </a>
+</div>
+
+<!-- Arama -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-10">
+                <input type="text" name="search" class="form-control" placeholder="Tedarikçi adı veya kodu..."
+                    value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Ara
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tedarikçi Listesi -->
+{% if suppliers %}
+<div class="row">
+    {% for supplier in suppliers %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ supplier.name }}</h5>
+                <p class="text-muted"><code>{{ supplier.code }}</code></p>
+
+                <div class="mb-2">
+                    <small>
+                        {% if supplier.contact_person %}
+                        <i class="bi bi-person"></i> {{ supplier.contact_person }}<br>
+                        {% endif %}
+                        {% if supplier.phone %}
+                        <i class="bi bi-telephone"></i> {{ supplier.phone }}<br>
+                        {% endif %}
+                        {% if supplier.email %}
+                        <i class="bi bi-envelope"></i> {{ supplier.email }}
+                        {% endif %}
+                    </small>
+                </div>
+
+                {% if supplier.rating > 0 %}
+                <div class="mb-2">
+                    {% for i in range(supplier.rating) %}
+                    <i class="bi bi-star-fill text-warning"></i>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <a href="{{ url_for('suppliers.view', id=supplier.id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i> Detay
+                </a>
+                <a href="{{ url_for('suppliers.edit', id=supplier.id) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-pencil"></i> Düzenle
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Henüz tedarikçi eklenmemiş.
+</div>
+{% endif %}
+{% endblock %}

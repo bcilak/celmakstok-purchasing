@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}Birim Fiyat ve KDV Yönetimi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-hero {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        border-radius: 15px;
+        padding: 40px 20px;
+        color: white;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .search-input-wrapper {
+        max-width: 600px;
+        margin: 0 auto;
+        position: relative;
+    }
+
+    .search-input-wrapper .bi-search {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        font-size: 1.2rem;
+    }
+
+    .search-input {
+        padding: 15px 15px 15px 50px;
+        border-radius: 30px;
+        border: none;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        font-size: 1.1rem;
+    }
+
+    .search-input:focus {
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        outline: none;
+    }
+
+    .product-card {
+        background: white;
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: transform 0.3s, box-shadow 0.3s;
+        margin-bottom: 20px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .product-card .card-header {
+        background: transparent;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 15px 20px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .product-card .card-body {
+        padding: 20px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .product-card .card-footer {
+        background: rgba(0, 0, 0, 0.02);
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 15px 20px;
+    }
+
+    .price-input-group {
+        margin-bottom: 15px;
+    }
+
+    .price-input-group label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 50px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        color: #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Arama Alanı -->
+<div class="search-hero">
+    <h2 class="mb-3"><i class="bi bi-box-seam"></i> Fiyat & KDV Yönetimi</h2>
+    <p class="mb-4 text-light opacity-75">Ürün kodunu veya adını yazarak aradığınız ürünü anında bulun</p>
+
+    <div class="search-input-wrapper">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchInput" class="form-control search-input form-control-lg"
+            placeholder="Örn: Rulman, Civata, 102030...">
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4 px-2">
+    <h5 class="text-secondary m-0">Arama Sonuçları <span id="resultCount" class="badge bg-secondary ms-2"
+            style="display: none;">0</span></h5>
+    <div>
+        {% if api_connected %}
+        <span class="badge bg-success"><i class="bi bi-check-circle"></i> API Bağlı</span>
+        {% else %}
+        <span class="badge bg-danger"><i class="bi bi-x-circle"></i> API Bağlantı Hatası</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Dinamik Kartlar Alanı -->
+<div id="resultsArea" class="row">
+    <!-- Boş Durum (Başlangıç) -->
+    <div class="col-12" id="emptyState">
+        <div class="empty-state">
+            <i class="bi bi-search"></i>
+            <h4>Ürün Aramaya Başlayın</h4>
+            <p>Yukarıdaki arama kutusuna ürün adını veya kodunu yazın.<br>Sadece eşleşen ürünler burada listelenecektir.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- API'den Gelen Tüm Ham Veriyi JS Değişkeni Olarak Aktarma -->
+<script id="productsData" type="application/json">
+    {{ products | tojson | safe }}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Ham veriyi yükle
+        const rawData = document.getElementById('productsData').textContent;
+        let products = [];
+        try {
+            products = JSON.parse(rawData);
+        } catch (e) {
+            console.error("Ürün verileri okunamadı:", e);
+        }
+
+        const searchInput = document.getElementById('searchInput');
+        const resultsArea = document.getElementById('resultsArea');
+        const emptyState = document.getElementById('emptyState');
+        const resultCountBadge = document.getElementById('resultCount');
+
+        // Arama Eylemi
+        let debounceTimer;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            const query = this.value.trim().toLowerCase();
+
+            debounceTimer = setTimeout(() => {
+                if (query.length < 2) {
+                    // Temizle veya başlangıç durumuna dön
+                    resultsArea.innerHTML = '';
+                    resultsArea.appendChild(emptyState);
+                    emptyState.style.display = 'block';
+                    resultCountBadge.style.display = 'none';
+                    return;
+                }
+
+                // Sadece eşleşenleri bul (Sınırlama: Performans için ilk 50 kartı gösterelim ki tarayıcı donmasın)
+                const matches = products.filter(p => {
+                    const code = (p.code || '').toLowerCase();
+                    const name = (p.name || '').toLowerCase();
+                    return code.includes(query) || name.includes(query);
+                });
+
+                renderCards(matches.slice(0, 50), matches.length);
+            }, 300); // 300ms gecikmeli arama (performans için)
+        });
+
+        function renderCards(matches, totalMatchCount) {
+            resultsArea.innerHTML = ''; // Temizle
+
+            if (matches.length === 0) {
+                // Eşleşme Yok
+                resultsArea.innerHTML = `
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <i class="bi bi-emoji-frown"></i>
+                            <h4>Sonuç Bulunamadı</h4>
+                            <p>Aradığınız kriterlere uygun bir ürün stokta yok.</p>
+                        </div>
+                    </div>
+                `;
+                resultCountBadge.style.display = 'inline-block';
+                resultCountBadge.textContent = '0';
+                return;
+            }
+
+            // Kartları oluştur
+            let html = '';
+            matches.forEach(product => {
+                const category = product.category || 'Belirtilmemiş';
+                const currentStock = product.current_stock || 0;
+                const unit = product.unit || 'Adet';
+                const price = (product.unit_price || 0).toFixed(2);
+                const vat = (product.vat_rate || 20.0).toFixed(1);
+
+                html += `
+                <div class="col-md-6 col-lg-4 col-xl-3">
+                    <div class="product-card">
+                        <div class="card-header">
+                            <span class="text-truncate mr-2" style="max-width: 70%;" title="${product.name}">${product.name}</span>
+                            <span class="badge bg-light text-dark border">${product.code}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-3 text-muted" style="font-size: 0.85rem;">
+                                <span><i class="bi bi-tag"></i> ${category}</span>
+                                <span><i class="bi bi-box"></i> Stok: <strong class="${currentStock <= 0 ? 'text-danger' : 'text-success'}">${currentStock} ${unit}</strong></span>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="price-input-group">
+                                        <label>Birim Fiyat (TL)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">₺</span>
+                                            <input type="number" step="0.01" class="form-control text-end price-input" 
+                                                data-product="${product.code}" value="${price}">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="price-input-group">
+                                        <label>KDV Oranı (%)</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">%</span>
+                                            <input type="number" step="0.1" class="form-control text-end vat-input" 
+                                                data-product="${product.code}" value="${vat}">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer text-end">
+                            <button class="btn btn-sm btn-primary w-100 save-btn fw-bold" data-product="${product.code}">
+                                <i class="bi bi-save"></i> Fiyatı Güncelle
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+
+            if (totalMatchCount > 50) {
+                html += `
+                <div class="col-12 mt-3 text-center text-muted">
+                    <small><i>Sadece ilk 50 sonuç listelendi. Daha spesifik arama yapabilirsiniz (${totalMatchCount} eşleşme bulundu).</i></small>
+                </div>
+                `;
+            }
+
+            resultsArea.innerHTML = html;
+            resultCountBadge.style.display = 'inline-block';
+            resultCountBadge.textContent = totalMatchCount;
+
+            // Event listener'ları bağla
+            attachSaveListeners();
+        }
+
+        function attachSaveListeners() {
+            const btns = document.querySelectorAll('.save-btn');
+            btns.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const code = this.dataset.product;
+                    const priceInput = document.querySelector(`.price-input[data-product="${code}"]`);
+                    const vatInput = document.querySelector(`.vat-input[data-product="${code}"]`);
+
+                    const price = parseFloat(priceInput.value) || 0;
+                    const vat = parseFloat(vatInput.value) || 0;
+
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Kaydediliyor...';
+                    this.disabled = true;
+
+                    fetch('/api/v1/products/prices', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            product_code: code,
+                            unit_price: price,
+                            vat_rate: vat
+                        })
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.innerHTML = '<i class="bi bi-check2-all"></i> Kaydedildi';
+                                this.classList.remove('btn-primary');
+                                this.classList.add('btn-success');
+
+                                // Bellek içi veriyi de güncelle (tekrar aratılırsa doğru gelsin)
+                                const pIndex = products.findIndex(p => p.code === code);
+                                if (pIndex !== -1) {
+                                    products[pIndex].unit_price = price;
+                                    products[pIndex].vat_rate = vat;
+                                }
+                            } else {
+                                throw new Error(data.error);
+                            }
+                        })
+                        .catch(e => {
+                            console.error(e);
+                            this.innerHTML = '<i class="bi bi-x-circle"></i> Hata';
+                            this.classList.remove('btn-primary');
+                            this.classList.add('btn-danger');
+                        })
+                        .finally(() => {
+                            setTimeout(() => {
+                                this.innerHTML = originalHTML;
+                                this.className = "btn btn-sm btn-primary w-100 save-btn fw-bold";
+                                this.disabled = false;
+                            }, 2000);
+                        });
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

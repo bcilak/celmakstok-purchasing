@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Yeni Sipariş Oluştur{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-cart-plus text-primary me-2"></i>Yeni Sipariş Oluştur</h2>
+        <p class="text-muted small mb-0">Ana depoya ulaşacak yeni bir satın alma siparişi (PO) oluşturun.</p>
+    </div>
+    <a href="{{ url_for('purchasing.orders') }}" class="btn btn-light rounded-pill px-4 shadow-sm border">
+        <i class="bi bi-arrow-left me-1"></i> Siparişlere Dön
+    </a>
+</div>
+
+<form method="POST">
+    <div class="row g-4">
+        <!-- Sol Kolon: Form Alanları -->
+        <div class="col-lg-8">
+
+            <!-- 1. Tedarikçi -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="fw-bold text-primary"><i class="bi bi-1-circle me-2"></i>Tedarikçi Seçimi</h5>
+                </div>
+                <div class="card-body p-4">
+                    <label class="form-label text-muted small fw-bold text-uppercase">Tedarikçi Firma <span
+                            class="text-danger">*</span></label>
+                    <select name="supplier_id" class="form-select form-select-lg shadow-none bg-light"
+                        id="supplier_select" required onchange="updatePriceSuggestion()">
+                        <option value="">-- Listeden seçiniz --</option>
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}">
+                            {{ supplier.name }}
+                            {% if supplier.rating > 0 %}
+                            ({% for i in range(supplier.rating) %}⭐{% endfor %})
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- 2. Ürün Bilgileri -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="fw-bold text-info"><i class="bi bi-2-circle me-2"></i>Ürün Detayları</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Stok Kodu <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" list="productList" name="product_code" id="product_code"
+                                class="form-control form-control-lg shadow-none bg-light"
+                                placeholder="Ürün Ara (örn: URN-001)" value="{{ product_code or '' }}" required
+                                autocomplete="off" onchange="autoFillProductDetails()">
+
+                            <datalist id="productList">
+                                {% for product in all_products %}
+                                <option value="{{ product.code }}" data-name="{{ product.name }}"
+                                    data-unit="{{ product.unit }}">
+                                    {{ product.name }}
+                                </option>
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Ürün Adı / Açıklaması
+                                <span class="text-danger">*</span></label>
+                            <input type="text" name="product_name" id="product_name"
+                                class="form-control form-control-lg shadow-none bg-light"
+                                placeholder="Ürün Kodu seçtiğinizde otomatik dolar..." required readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Miktar ve Fiyatlandırma -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="fw-bold text-success"><i class="bi bi-3-circle me-2"></i>Sipariş Kalemleri</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Miktar <span
+                                    class="text-danger">*</span></label>
+                            <div class="input-group input-group-lg shadow-sm">
+                                <input type="number" name="quantity" class="form-control border-end-0" step="0.01"
+                                    placeholder="0.00" required>
+                                <select name="unit_type" id="unit_type"
+                                    class="form-select border-start-0 bg-light text-muted" style="max-width: 100px;">
+                                    <option value="Adet">Adet</option>
+                                    <option value="Kg">Kg</option>
+                                    <option value="Lt">Lt</option>
+                                    <option value="Mt">Mt</option>
+                                    <option value="Paket">Pkt</option>
+                                    <option value="Kutu">Kutu</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {% if current_user.role in ['admin', 'manager'] %}
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small fw-bold text-uppercase">Birim Fiyat <span
+                                    class="text-danger">*</span></label>
+                            <div class="input-group input-group-lg shadow-sm">
+                                <input type="number" name="unit_price" id="unit_price_input"
+                                    class="form-control border-end-0" step="0.01"
+                                    value="{% if price_suggestions %}{{ price_suggestions.price }}{% else %}{% endif %}"
+                                    placeholder="0.00" required>
+                                <select name="currency" class="form-select border-start-0 bg-light text-muted"
+                                    style="max-width: 110px;">
+                                    <option value="TRY" selected>TRY (₺)</option>
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                </select>
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Purchasing role submits 0 as default hidden price -->
+                        <input type="hidden" name="unit_price" value="0">
+                        <input type="hidden" name="currency" value="TRY">
+                        {% endif %}
+                    </div>
+
+                    {% if current_user.role in ['admin', 'manager'] and price_suggestions %}
+                    <!-- Akıllı Fiyat Önerisi Sadece Yöneticilere -->
+                    <div class="mt-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-success fw-bold mb-1"><i class="bi bi-robot me-1"></i> Akıllı Fiyat
+                                    Önerisi Bulundu</h6>
+                                <p class="small text-muted mb-0">Önerilen: <strong>{{
+                                        '{:,.2f}'.format(price_suggestions.price) }} {{ price_suggestions.currency
+                                        }}</strong>
+                                    {% if price_suggestions.source == 'supplier_catalog' %}
+                                    <span class="badge bg-success ms-2">Tedarikçi Kataloğu</span>
+                                    {% elif price_suggestions.source == 'historical_average' %}
+                                    <span class="badge bg-primary ms-2">Geçmiş Sipariş Ortalaması</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 shadow-sm"
+                                onclick="document.getElementById('unit_price_input').value = '{{ price_suggestions.price }}'">
+                                <i class="bi bi-check2-circle"></i> Fiyatı Uygula
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Sağ Kolon: Lojistik ve Onay -->
+        <div class="col-lg-4">
+
+            <!-- Lojistik Detayları -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="fw-bold text-warning"><i class="bi bi-truck me-2 text-warning"></i>Lojistik & Teslimat
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Öncelik Durumu</label>
+                        <select name="priority" class="form-select shadow-none">
+                            <option value="low">🟡 Düşük Öncelik</option>
+                            <option value="normal" selected>🟢 Normal Akış</option>
+                            <option value="high">🟠 Yüksek Öncelik</option>
+                            <option value="urgent">🔴 Çok Acil!</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Hedef Teslim T. <i
+                                class="bi bi-calendar-event ms-1 text-primary"></i></label>
+                        <input type="date" name="expected_delivery_date" class="form-control shadow-none bg-light">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Sipariş Notları</label>
+                        <textarea name="notes" class="form-control shadow-none bg-light" rows="3"
+                            placeholder="Depo veya tedarikçi için özel notlar..."></textarea>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Onay Butonu Sticky -->
+            <div class="card shadow-sm border-0 rounded-4 mb-4 bg-primary text-white">
+                <div class="card-body p-4 text-center">
+                    <i class="bi bi-shield-check display-4 mb-3 d-block opacity-50"></i>
+                    <h5 class="fw-bold mb-1">Onaya Gönder</h5>
+                    <p class="small text-white-50 mb-4">Girdiğiniz bilgiler doğrulandıktan sonra anlık olarak
+                        kaydedilir.</p>
+                    <button type="submit" class="btn btn-light btn-lg w-100 rounded-pill fw-bold text-primary shadow">
+                        <i class="bi bi-check2-all me-1"></i> Siparişi Oluştur
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</form>
+
+{% if current_user.role in ['admin', 'manager'] %}
+<!-- Geçmiş Fiyatları vs yüklemek isterseniz price_widget buraya gelebilir -->
+{% endif %}
+
+{% block extra_js %}
+<script>
+    function autoFillProductDetails() {
+        const input = document.getElementById('product_code');
+        const dataList = document.getElementById('productList');
+        const options = dataList.options;
+        const selectedValue = input.value;
+        const nameInput = document.getElementById('product_name');
+
+        let found = false;
+
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === selectedValue) {
+                // Found the product! Fill in the name and unit
+                nameInput.value = options[i].getAttribute('data-name');
+                const unit = options[i].getAttribute('data-unit');
+                nameInput.readOnly = true; // Lock the field since it matches a real product
+
+                // Set the unit dropdown
+                const unitSelect = document.getElementById('unit_type');
+                for (let j = 0; j < unitSelect.options.length; j++) {
+                    if (unitSelect.options[j].value.toLowerCase() === unit.toLowerCase()) {
+                        unitSelect.selectedIndex = j;
+                        break;
+                    }
+                }
+
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // Unrecognized product code entered. Allow writing anything or enforce match?
+            // User requested a control mechanism, so let's clear it and warn.
+            nameInput.value = '';
+            alert('Lütfen geçerli bir Stok Kodu seçiniz!');
+            input.value = '';
+        }
+    }
+
+    // Auto trigger on load if product_code is passed via URL
+    document.addEventListener("DOMContentLoaded", function () {
+        if (document.getElementById('product_code').value) {
+            autoFillProductDetails();
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}
