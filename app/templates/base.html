@@ -177,6 +177,10 @@
                     class="{% if request.endpoint == 'purchasing.manage_prices' %}active{% endif %}">
                     <i class="bi bi-tags"></i> Fiyat Yönetimi
                 </a>
+                <a href="{{ url_for('templates_bp.list_templates') }}"
+                    class="{% if request.endpoint and request.endpoint.startswith('templates_bp') %}active{% endif %}">
+                    <i class="bi bi-file-earmark-text"></i> Şablon Yönetimi
+                </a>
                 {% endif %}
                 <a href="{{ url_for('suppliers.index') }}"
                     class="{% if request.endpoint and request.endpoint.startswith('suppliers') %}active{% endif %}">

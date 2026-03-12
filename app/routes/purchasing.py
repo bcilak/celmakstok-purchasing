@@ -1,13 +1,14 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, send_file, make_response
 from flask_login import login_required, current_user
 from app.utils.decorators import roles_required
-from app.models import PurchaseOrder, Supplier, SupplierProduct, ProductPrice
+from app.models import PurchaseOrder, Supplier, SupplierProduct, ProductPrice, OrderTemplate
 from app.stock_api import StockAPIClient
 from app.utils.price_helper import PriceHelper
 from app import db
 from datetime import datetime, timedelta
 import io
 import csv
+import re
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -267,45 +268,128 @@ def product_detail(product_code):
 @purchasing_bp.route('/orders')
 @login_required
 def orders():
-    """Tüm Siparişler"""
-    
+    """Tüm Siparişler - batch'lere göre gruplu gösterim"""
+    from collections import OrderedDict
+
     # Filtreleme
     status_filter = request.args.get('status', '')
     supplier_filter = request.args.get('supplier', '')
-    
+
     query = PurchaseOrder.query
-    
     if status_filter:
         query = query.filter_by(status=status_filter)
-    
     if supplier_filter:
         query = query.filter_by(supplier_id=int(supplier_filter))
-    
-    # Sayfalama
+
+    all_orders = query.order_by(PurchaseOrder.created_at.desc()).all()
+
+    # batch_number'a göre grupla; eski siparişlerde batch_number yoksa order_number'u key kullan
+    batches_dict = OrderedDict()
+    for order in all_orders:
+        key = order.batch_number or order.order_number
+        if key not in batches_dict:
+            batches_dict[key] = []
+        batches_dict[key].append(order)
+
+    # Her batch için özet bilgi hesapla
+    STATUS_PRIORITY = {'pending': 0, 'approved': 1, 'ordered': 2, 'received': 3, 'cancelled': 4}
+
+    batch_list = []
+    for key, order_items in batches_dict.items():
+        statuses = [o.status for o in order_items]
+        unique_statuses = set(statuses)
+        dominant = min(unique_statuses, key=lambda s: STATUS_PRIORITY.get(s, 99))
+
+        totals = {}
+        for o in order_items:
+            totals[o.currency] = totals.get(o.currency, 0) + o.total_price
+
+        batch_list.append({
+            'batch_number': key,
+            'supplier': order_items[0].supplier,
+            'orders': order_items,
+            'item_count': len(order_items),
+            'status': dominant,
+            'mixed_status': len(unique_statuses) > 1,
+            'totals': totals,
+            'created_at': order_items[-1].created_at,  # en eski (ilk oluşturulan)
+            'expected_delivery_date': order_items[0].expected_delivery_date,
+            'is_overdue': any(o.is_overdue for o in order_items),
+            'first_order_id': order_items[0].id,
+        })
+
+    # Manuel sayfalama (batch bazında)
     page = request.args.get('page', 1, type=int)
-    per_page = 20
-    
-    orders = query.order_by(PurchaseOrder.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
-    
+    per_page = 15
+    total_batches = len(batch_list)
+    total_pages = max(1, (total_batches + per_page - 1) // per_page)
+    start = (page - 1) * per_page
+    page_batches = batch_list[start:start + per_page]
+
     suppliers = Supplier.query.filter_by(is_active=True).order_by(Supplier.name).all()
-    
+
     return render_template('purchasing/orders.html',
-                         orders=orders,
-                         suppliers=suppliers,
-                         status_filter=status_filter,
-                         supplier_filter=supplier_filter)
+                           batches=page_batches,
+                           suppliers=suppliers,
+                           status_filter=status_filter,
+                           supplier_filter=supplier_filter,
+                           page=page,
+                           total_pages=total_pages,
+                           has_prev=page > 1,
+                           has_next=page < total_pages,
+                           prev_num=page - 1,
+                           next_num=page + 1)
 
 @purchasing_bp.route('/approvals')
 @login_required
 @roles_required('admin', 'manager')
 def approvals():
     """Onay Bekleyen Siparişler"""
-    # Sadece pending durumundaki siparişleri getir
     pending_orders = PurchaseOrder.query.filter_by(status='pending').order_by(PurchaseOrder.created_at.desc()).all()
-    
     return render_template('purchasing/approvals.html', orders=pending_orders)
+
+
+@purchasing_bp.route('/batch/<batch_number>/update-status', methods=['POST'])
+@login_required
+def batch_update_status(batch_number):
+    """Sipariş grubunun (batch) durumunu toplu güncelle"""
+    new_status = request.form.get('status')
+
+    if new_status not in ['pending', 'approved', 'ordered', 'received', 'cancelled']:
+        flash('Geçersiz durum!', 'danger')
+        return redirect(url_for('purchasing.orders'))
+
+    if new_status == 'approved' and current_user.role not in ['admin', 'manager']:
+        flash('Siparişleri onaylama yetkiniz bulunmamaktadır!', 'danger')
+        return redirect(url_for('purchasing.orders'))
+
+    # batch_number veya order_number ile siparişleri bul
+    batch_orders = PurchaseOrder.query.filter_by(batch_number=batch_number).all()
+    if not batch_orders:
+        batch_orders = PurchaseOrder.query.filter_by(order_number=batch_number).all()
+
+    if not batch_orders:
+        flash('Sipariş grubu bulunamadı!', 'danger')
+        return redirect(url_for('purchasing.orders'))
+
+    api_client = StockAPIClient()
+    for order in batch_orders:
+        order.status = new_status
+        if new_status == 'received' and not order.actual_delivery_date:
+            order.actual_delivery_date = datetime.utcnow()
+            api_client.update_stock_receipt({
+                'order_number': order.order_number,
+                'product_code': order.product_code,
+                'quantity': order.quantity,
+                'receipt_date': order.actual_delivery_date.isoformat(),
+                'unit_price': order.unit_price,
+                'currency': order.currency
+            })
+
+    db.session.commit()
+    count = len(batch_orders)
+    flash(f'{count} kalem siparişin durumu güncellendi.', 'success')
+    return redirect(url_for('purchasing.orders'))
 
 @purchasing_bp.route('/order/new', methods=['GET', 'POST'])
 @login_required
@@ -314,47 +398,87 @@ def new_order():
     
     if request.method == 'POST':
         try:
-            # Sipariş numarası oluştur
-            last_order = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).first()
-            order_number = f"PO-{datetime.utcnow().year}-{(last_order.id + 1) if last_order else 1:05d}"
-            
-            # Fiyat hesapla
-            quantity = float(request.form.get('quantity'))
-            unit_price = float(request.form.get('unit_price', 0))
-            total_price = quantity * unit_price
-            
-            order = PurchaseOrder(
-                order_number=order_number,
-                supplier_id=int(request.form.get('supplier_id')),
-                product_code=request.form.get('product_code'),
-                product_name=request.form.get('product_name'),
-                quantity=quantity,
-                unit_type=request.form.get('unit_type'),
-                unit_price=unit_price,
-                total_price=total_price,
-                currency=request.form.get('currency', 'TRY'),
-                priority=request.form.get('priority', 'normal'),
-                expected_delivery_date=datetime.strptime(request.form.get('expected_delivery_date'), '%Y-%m-%d') if request.form.get('expected_delivery_date') else None,
-                notes=request.form.get('notes'),
-                created_by_id=current_user.id
-            )
-            
-            db.session.add(order)
-            db.session.commit()
-            
-            # API Entegrasyonu: Stok sistemine "Yoldaki Stok" fişini gönder
+            # Çoklu ürün satırlarını al
+            product_codes = request.form.getlist('product_code[]')
+            product_names = request.form.getlist('product_name[]')
+            quantities = request.form.getlist('quantity[]')
+            unit_types = request.form.getlist('unit_type[]')
+            unit_prices = request.form.getlist('unit_price[]')
+            currencies = request.form.getlist('currency[]')
+
+            supplier_id = int(request.form.get('supplier_id'))
+            priority = request.form.get('priority', 'normal')
+            notes = request.form.get('notes')
+            delivery_str = request.form.get('expected_delivery_date')
+            expected_delivery_date = datetime.strptime(delivery_str, '%Y-%m-%d') if delivery_str else None
+
+            # Boş satırları filtrele
+            items = [
+                (product_codes[i].strip(), product_names[i].strip(), quantities[i],
+                 unit_types[i] if unit_types else 'Adet',
+                 unit_prices[i] if unit_prices else '0',
+                 currencies[i] if currencies else 'TRY')
+                for i in range(len(product_codes))
+                if product_codes[i].strip() and product_names[i].strip() and quantities[i]
+            ]
+
+            if not items:
+                flash('En az bir geçerli ürün satırı girmelisiniz.', 'danger')
+                raise ValueError('Boş sipariş')
+
+            created_orders = []
             api_client = StockAPIClient()
-            api_client.notify_in_transit_stock({
-                'order_number': order.order_number,
-                'product_code': order.product_code,
-                'quantity': order.quantity,
-                'expected_date': order.expected_delivery_date.isoformat() if order.expected_delivery_date else None,
-                'supplier_id': order.supplier_id
-            })
-            
-            flash(f'Sipariş {order_number} başarıyla oluşturuldu!', 'success')
+            batch_number = None  # İlk order_number batch kimliği olur
+
+            for code, name, qty_str, unit, price_str, currency in items:
+                last_order = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).first()
+                order_number = f"PO-{datetime.utcnow().year}-{(last_order.id + 1) if last_order else 1:05d}"
+
+                if batch_number is None:
+                    batch_number = order_number  # İlk kalemin numarası grup kimliği
+
+                quantity = float(qty_str)
+                unit_price = float(price_str)
+                total_price = quantity * unit_price
+
+                order = PurchaseOrder(
+                    order_number=order_number,
+                    batch_number=batch_number,
+                    supplier_id=supplier_id,
+                    product_code=code,
+                    product_name=name,
+                    quantity=quantity,
+                    unit_type=unit,
+                    unit_price=unit_price,
+                    total_price=total_price,
+                    currency=currency,
+                    priority=priority,
+                    expected_delivery_date=expected_delivery_date,
+                    notes=notes,
+                    created_by_id=current_user.id
+                )
+                db.session.add(order)
+                db.session.flush()  # ID'yi şimdi al
+                created_orders.append(order)
+
+            db.session.commit()
+
+            # API: Her kalem için "yoldaki stok" bildirimi
+            for order in created_orders:
+                api_client.notify_in_transit_stock({
+                    'order_number': order.order_number,
+                    'product_code': order.product_code,
+                    'quantity': order.quantity,
+                    'expected_date': order.expected_delivery_date.isoformat() if order.expected_delivery_date else None,
+                    'supplier_id': order.supplier_id
+                })
+
+            order_nums = ', '.join(o.order_number for o in created_orders)
+            flash(f'{len(created_orders)} kalem için sipariş oluşturuldu: {order_nums}', 'success')
             return redirect(url_for('purchasing.orders'))
-            
+
+        except ValueError:
+            db.session.rollback()
         except Exception as e:
             db.session.rollback()
             flash(f'Sipariş oluşturulamadı: {str(e)}', 'danger')
@@ -731,4 +855,132 @@ def api_suppliers():
             'phone': s.phone
         } for s in suppliers]
     })
+
+@purchasing_bp.route('/order/<int:order_id>/document', methods=['GET', 'POST'])
+@login_required
+def order_document(order_id):
+    """Sipariş için şablondan belge oluştur/düzenle"""
+    order = PurchaseOrder.query.get_or_404(order_id)
+    templates = OrderTemplate.query.filter_by(is_active=True).order_by(OrderTemplate.name).all()
+
+    selected_template_id = request.args.get('template_id', type=int)
+    if not selected_template_id and templates:
+        default_t = next((t for t in templates if 'VARSAYILAN' in t.name.upper()), templates[0])
+        selected_template_id = default_t.id
+
+    content = ''
+
+    if selected_template_id:
+        template_obj = OrderTemplate.query.get_or_404(selected_template_id)
+        content = template_obj.content
+
+        # Batch'teki tüm kalemleri getir
+        if order.batch_number:
+            batch_orders = PurchaseOrder.query.filter_by(
+                batch_number=order.batch_number
+            ).order_by(PurchaseOrder.id).all()
+        else:
+            batch_orders = [order]
+
+        # --- Sipariş düzeyi değişkenler (ilk kalemden) ---
+        content = content.replace('{{ order_number }}', order.order_number or '')
+        content = content.replace('{{ order_date }}',
+            order.order_date.strftime('%d.%m.%Y') if order.order_date else '')
+        content = content.replace('{{ expected_delivery_date }}',
+            order.expected_delivery_date.strftime('%d.%m.%Y') if order.expected_delivery_date else '')
+
+        # --- Tedarikçi değişkenler ---
+        if order.supplier:
+            tax_info = ''
+            if order.supplier.tax_office and order.supplier.tax_number:
+                tax_info = f'{order.supplier.tax_office} / {order.supplier.tax_number}'
+            elif order.supplier.tax_number:
+                tax_info = order.supplier.tax_number
+            content = content.replace('{{ supplier_name }}', order.supplier.name or '')
+            content = content.replace('{{ supplier_contact }}', order.supplier.contact_person or '')
+            content = content.replace('{{ supplier_address }}', order.supplier.address or '')
+            content = content.replace('{{ supplier_tax }}', tax_info)
+        else:
+            for v in ['{{ supplier_name }}', '{{ supplier_contact }}',
+                      '{{ supplier_address }}', '{{ supplier_tax }}']:
+                content = content.replace(v, '')
+
+        # --- Ürün değişkenler: çoklu kalem desteği ---
+        PRODUCT_VARS = [
+            '{{ product_code }}', '{{ product_name }}', '{{ quantity }}',
+            '{{ unit_type }}', '{{ unit_price }}', '{{ total_price }}', '{{ currency }}'
+        ]
+
+        def _fill_item(tmpl, bo, idx):
+            """Bir şablon metnindeki ürün değişkenlerini tek bir kalemle doldurur."""
+            tmpl = tmpl.replace('{{ product_code }}', bo.product_code or '')
+            tmpl = tmpl.replace('{{ product_name }}', bo.product_name or '')
+            tmpl = tmpl.replace('{{ quantity }}', str(bo.quantity) if bo.quantity else '0')
+            tmpl = tmpl.replace('{{ unit_type }}', bo.unit_type or '')
+            tmpl = tmpl.replace('{{ unit_price }}', f'{bo.unit_price:,.2f}' if bo.unit_price else '0.00')
+            tmpl = tmpl.replace('{{ total_price }}', f'{bo.total_price:,.2f}' if bo.total_price else '0.00')
+            tmpl = tmpl.replace('{{ currency }}', bo.currency or 'TRY')
+            return tmpl
+
+        # 1) {{ items_table }} varsa hazır HTML tablo ile değiştir
+        if '{{ items_table }}' in content:
+            td = 'style="border:1px solid #ccc;padding:4px 8px;"'
+            th = 'style="border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;"'
+            rows_html = ''.join(
+                f'<tr>'
+                f'<td {td} style="border:1px solid #ccc;padding:4px 8px;text-align:center;">{i}</td>'
+                f'<td {td}>{bo.product_code or ""}</td>'
+                f'<td {td}>{bo.product_name or ""}</td>'
+                f'<td {td} style="border:1px solid #ccc;padding:4px 8px;text-align:center;">{bo.quantity or 0} {bo.unit_type or ""}</td>'
+                f'<td {td} style="border:1px solid #ccc;padding:4px 8px;text-align:right;">{bo.unit_price:,.2f} {bo.currency}</td>'
+                f'<td {td} style="border:1px solid #ccc;padding:4px 8px;text-align:right;">{bo.total_price:,.2f} {bo.currency}</td>'
+                f'</tr>'
+                for i, bo in enumerate(batch_orders, 1)
+            )
+            grand_total = sum(bo.total_price or 0 for bo in batch_orders)
+            currency0 = batch_orders[0].currency if batch_orders else 'TRY'
+            items_table_html = (
+                f'<table style="width:100%;border-collapse:collapse;font-size:11pt;">'
+                f'<thead><tr>'
+                f'<th {th}>S/N</th><th {th}>Stok Kodu</th><th {th}>Malın Tanımı</th>'
+                f'<th {th}>Miktar</th><th {th}>Birim Fiyat</th><th {th}>Toplam</th>'
+                f'</tr></thead><tbody>{rows_html}</tbody>'
+                f'<tfoot><tr><td colspan="5" style="text-align:right;padding:4px 8px;"><strong>Genel Toplam</strong></td>'
+                f'<td style="border:1px solid #ccc;padding:4px 8px;text-align:right;"><strong>{grand_total:,.2f} {currency0}</strong></td></tr></tfoot>'
+                f'</table>'
+            )
+            content = content.replace('{{ items_table }}', items_table_html)
+
+        # 2) Şablonda <tr> içinde ürün değişkeni varsa:
+        #    - Ürün değişkeni içeren TÜM satırları bul
+        #    - İlk N tanesini ürün verileriyle doldur, kalanları boşalt
+        elif any(v in content for v in PRODUCT_VARS):
+            tr_re = re.compile(
+                r'<tr(?:\s[^>]*)?>(?:(?!</tr>).)*?(?:' +
+                '|'.join(re.escape(v) for v in PRODUCT_VARS) +
+                r')(?:(?!</tr>).)*?</tr>',
+                re.DOTALL | re.IGNORECASE
+            )
+            all_matches = list(tr_re.finditer(content))
+            if all_matches:
+                # İçeriği parçalara bölerek değiştir (sondan başa doğru ki offset bozulmasın)
+                for idx, m in reversed(list(enumerate(all_matches))):
+                    if idx < len(batch_orders):
+                        # Bu satıra karşılık gelen ürün verisini doldur
+                        replacement = _fill_item(m.group(0), batch_orders[idx], idx + 1)
+                    else:
+                        # Fazla satır: tüm ürün değişkenlerini boşalt
+                        row = m.group(0)
+                        for v in PRODUCT_VARS:
+                            row = row.replace(v, '')
+                        replacement = row
+                    content = content[:m.start()] + replacement + content[m.end():]
+            else:
+                content = _fill_item(content, batch_orders[0], 1)
+
+    return render_template('purchasing/document.html',
+                           order=order,
+                           templates=templates,
+                           selected_template_id=selected_template_id,
+                           content=content)
 

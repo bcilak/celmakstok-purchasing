@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Belge Oluştur - {{ order.order_number }}{% endblock %}
+
+{% block extra_css %}
+<!-- SunEditor CSS -->
+<link href="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css" rel="stylesheet">
+<style>
+    /* A4 kâğıt görünümü */
+    .sun-editor {
+        max-width: 860px;
+        margin: 0 auto;
+        box-shadow: 0 0 10px rgba(0,0,0,0.12);
+    }
+    .se-wrapper-inner {
+        min-height: 800px;
+        padding: 40px !important;
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 11pt;
+        background: #fff;
+    }
+    /* Toolbar icon düzeltmesi */
+    .sun-editor .se-toolbar svg {
+        width: 16px !important; height: 16px !important;
+        display: inline-block !important; float: none !important;
+        vertical-align: middle !important;
+    }
+    .sun-editor .se-btn {
+        width: 34px !important; height: 34px !important;
+        line-height: 34px !important; padding: 0 !important;
+    }
+    .sun-editor .se-toolbar {
+        background: #f8f9fa !important;
+        border-bottom: 1px solid #ddd !important;
+    }
+    .sun-editor .se-btn-select span { line-height: 34px !important; font-size: 12px !important; }
+    .sun-editor .se-btn-select.se-btn-tool-font { width: 110px !important; }
+    .sun-editor .se-btn-select.se-btn-tool-size { width: 65px !important; }
+    /* Yazdırma stilleri */
+    @media print {
+        nav, .navbar, .sidebar, .d-print-none, .sun-editor-editable { visibility: hidden !important; }
+        #print-content, #print-content * { visibility: visible !important; }
+        #print-content {
+            position: fixed; left: 0; top: 0;
+            width: 100%; padding: 20mm;
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 11pt; background: white;
+        }
+        table { border-collapse: collapse !important; }
+        td, th { border: 1px solid #333 !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center d-print-none">
+        <div class="col-md-6">
+            <h1 class="h3 mb-0 text-gray-800"><i class="bi bi-file-earmark-pdf me-2"></i>Sipariş Formu Hazırla</h1>
+            <p class="text-muted mb-0">{{ order.order_number }} - {{ order.supplier.name if order.supplier else '' }}</p>
+        </div>
+        <div class="col-md-6 text-md-end mt-3 mt-md-0">
+            <button class="btn btn-primary shadow-sm" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i> PDF Olarak Kaydet / Yazdır
+            </button>
+            <a href="{{ url_for('purchasing.orders') }}" class="btn btn-outline-secondary ms-2">
+                Kapat
+            </a>
+        </div>
+    </div>
+
+    <!-- Şablon Seçimi (Gizlenebilir veya sadeleştirilmiş) -->
+    {% if templates|length > 1 %}
+    <div class="card shadow-sm mb-4 d-print-none border-0 bg-light">
+        <div class="card-body py-2">
+            <form id="templateSelectForm" action="" method="GET" class="row align-items-center">
+                <div class="col-auto">
+                    <small class="fw-bold text-muted">Şablon Değiştir:</small>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select form-select-sm" id="template_id" name="template_id" onchange="document.getElementById('templateSelectForm').submit()">
+                        {% for template in templates %}
+                        <option value="{{ template.id }}" {% if selected_template_id == template.id %}selected{% endif %}>
+                            {{ template.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected_template_id %}
+    <div class="alert alert-info d-print-none">
+        <i class="bi bi-info-circle me-1"></i> Şablon verilerle dolduruldu. Aşağıdaki alanda belgeyi yazdırmadan önce son düzenlemeleri yapabilirsiniz.
+    </div>
+
+    <!-- Yazdırma için gizli alan -->
+    <div id="print-content" style="display:none;"></div>
+
+    <div class="mb-5 pb-5">
+        <textarea id="sunDocEditor" style="display:none;"></textarea>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted d-print-none">
+        <i class="bi bi-file-earmark-text fs-1 d-block mb-3"></i>
+        <p>Lütfen belgeyi oluşturmak için yukarıdan bir şablon seçin.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if selected_template_id %}
+<script src="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/suneditor@latest/src/lang/tr.js"></script>
+<script>
+    const docContent = {{ content | tojson }};
+
+    const editor = SUNEDITOR.create('sunDocEditor', {
+        lang: SUNEDITOR_LANG['tr'],
+        width: '100%',
+        height: 'auto',
+        buttonList: [
+            ['undo', 'redo'],
+            ['font', 'fontSize', 'formatBlock'],
+            ['bold', 'underline', 'italic', 'strike'],
+            ['fontColor', 'hiliteColor'],
+            ['removeFormat'],
+            ['align', 'horizontalRule', 'list'],
+            ['table', 'link'],
+            ['fullScreen', 'print', 'codeView']
+        ]
+    });
+
+    editor.setContents(docContent);
+
+    // Yazdır butonu: editör içeriğini gizli alana aktar, sonra yazdır
+    document.querySelector('button[onclick="window.print()"]').onclick = function () {
+        const html = editor.getContents();
+        const printDiv = document.getElementById('print-content');
+        printDiv.innerHTML = html;
+        printDiv.style.display = 'block';
+        window.print();
+        printDiv.style.display = 'none';
+    };
+</script>
+{% endif %}
+{% endblock %}

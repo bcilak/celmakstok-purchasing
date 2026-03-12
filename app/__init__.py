@@ -21,12 +21,13 @@ def create_app(config_class=Config):
     login_manager.login_message = 'Lütfen giriş yapın.'
     
     # Blueprints
-    from app.routes import auth, main, purchasing, suppliers, admin
+    from app.routes import auth, main, purchasing, suppliers, admin, templates
     
     app.register_blueprint(auth.auth_bp)
     app.register_blueprint(main.main_bp)
     app.register_blueprint(purchasing.purchasing_bp, url_prefix='/purchasing')
     app.register_blueprint(suppliers.suppliers_bp, url_prefix='/suppliers')
     app.register_blueprint(admin.admin_bp)
+    app.register_blueprint(templates.templates_bp, url_prefix='/templates')
     
     return app

@@ -137,6 +137,7 @@ class PurchaseOrder(db.Model):
     
     # Notlar ve takip
     notes = db.Column(db.Text)
+    batch_number = db.Column(db.String(50), nullable=True, index=True)  # Aynı formdan gelen siparişleri gruplar
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -234,4 +235,19 @@ class ProductPrice(db.Model):
     vat_rate = db.Column(db.Float, default=20.0)  # KDV oranı (%)
     currency = db.Column(db.String(10), default='TRY')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class OrderTemplate(db.Model):
+    """Sipariş Çıktı Şablonları"""
+    __tablename__ = 'order_templates'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(255))
+    content = db.Column(db.Text, nullable=False) # HTML formatında şablon içeriği
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
+    created_by = db.relationship('User', backref='created_templates')
 

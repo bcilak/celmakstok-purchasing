@@ -5,10 +5,74 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-people"></i> Kullanıcı Yönetimi</h2>
-    <div>
-        <a href="{{ url_for('admin_bp.audit_logs') }}" class="btn btn-outline-secondary">
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-toggle="modal"
+            data-bs-target="#createUserModal">
+            <i class="bi bi-person-plus me-1"></i> Yeni Kullanıcı Ekle
+        </button>
+        <a href="{{ url_for('admin_bp.audit_logs') }}" class="btn btn-outline-secondary rounded-pill px-4">
             <i class="bi bi-journal-text"></i> Detaylı Loglar
         </a>
+    </div>
+</div>
+
+<!-- Yeni Kullanıcı Ekleme Modalı -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow rounded-4">
+            <div class="modal-header bg-primary text-white rounded-top-4">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Yeni Kullanıcı Ekle</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('admin_bp.create_user') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Ad Soyad <span
+                                class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control shadow-none" placeholder="Örn: Ahmet Yılmaz"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Kullanıcı Adı <span
+                                class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">@</span>
+                            <input type="text" name="username" class="form-control shadow-none border-start-0"
+                                placeholder="kullanici_adi" required>
+                        </div>
+                        <div class="form-text">Giriş yaparken kullanılacak benzersiz ad.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">E-posta <span
+                                class="text-muted fw-normal">(opsiyonel)</span></label>
+                        <input type="email" name="email" class="form-control shadow-none" placeholder="ornek@firma.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Şifre <span
+                                class="text-danger">*</span></label>
+                        <input type="password" name="password" class="form-control shadow-none"
+                            placeholder="En az 6 karakter" minlength="6" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Rol Ataması</label>
+                        <select name="role" class="form-select shadow-none">
+                            <option value="purchasing">Satın Alma Uzmanı (Normal)</option>
+                            <option value="manager">Satın Alma Müdürü</option>
+                            <option value="admin">Sistem Yöneticisi (Admin)</option>
+                        </select>
+                        <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Tüm yetkilere sahip olan Admin
+                            yetkisi <strong>sistem yöneticileri</strong> içindir.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pb-4 pe-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4 shadow-sm"
+                        data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm"><i
+                            class="bi bi-check2 me-1"></i>Kullanıcı Oluştur</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -145,6 +209,8 @@
                                 <i class="bi bi-box-arrow-in-right"></i>
                                 {% elif log.action == 'edit_user' %}
                                 <i class="bi bi-person-gear"></i>
+                                {% elif log.action == 'create_user' %}
+                                <i class="bi bi-person-plus"></i>
                                 {% else %}
                                 <i class="bi bi-activity"></i>
                                 {% endif %}

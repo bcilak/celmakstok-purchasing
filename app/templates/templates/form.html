@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Şablon{% endblock %}
+
+{% block extra_css %}
+<!-- SunEditor CSS -->
+<link href="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css" rel="stylesheet">
+<style>
+    /* SunEditor toolbar icon düzeltmesi */
+    .se-toolbar svg,
+    .sun-editor .se-toolbar svg {
+        width: 16px !important;
+        height: 16px !important;
+        display: inline-block !important;
+        vertical-align: middle !important;
+        float: none !important;
+    }
+
+    .sun-editor .se-btn {
+        width: 34px !important;
+        height: 34px !important;
+        line-height: 34px !important;
+        padding: 0 !important;
+        font-size: 13px !important;
+    }
+
+    .sun-editor .se-toolbar {
+        outline: none !important;
+        background-color: #f8f9fa !important;
+        border-bottom: 1px solid #ddd !important;
+    }
+
+    .sun-editor .se-btn-select.se-btn-tool-font {
+        width: 100px !important;
+    }
+
+    .sun-editor .se-btn-select.se-btn-tool-size {
+        width: 60px !important;
+    }
+
+    .sun-editor .se-btn-select.se-btn-tool-format {
+        width: 90px !important;
+    }
+
+    .sun-editor .se-btn-select span {
+        font-size: 12px !important;
+        line-height: 34px !important;
+    }
+
+    .se-wrapper-inner {
+        background: #fff;
+        padding: 40px !important;
+        min-height: 600px;
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 11pt;
+    }
+
+    .variables-sidebar {
+        background-color: #f8f9fc;
+        border-radius: 0.35rem;
+        padding: 15px;
+        font-size: 0.9rem;
+    }
+
+    .variable-card {
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px dashed #ced4da;
+    }
+
+    .variable-card:hover {
+        background-color: #e3e6f0;
+        border-color: #4e73df;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col-8">
+            <h1 class="h3 mb-0 text-gray-800">{{ action }} Şablon Oluştur/Düzenle</h1>
+        </div>
+        <div class="col-4 text-end">
+            <a href="{{ url_for('templates_bp.list_templates') }}" class="btn btn-outline-secondary shadow-sm">
+                <i class="bi bi-arrow-left me-1"></i> Geri Dön
+            </a>
+        </div>
+    </div>
+
+    <form id="templateForm" method="POST" action="">
+        <div class="row">
+            <div class="col-xl-9 col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div
+                        class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h6 class="m-0 font-weight-bold text-primary">Şablon İçeriği</h6>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="btn btn-sm btn-outline-secondary mb-0" for="uploadDocx"
+                                title="Mevcut Word şablonunu yükle">
+                                <i class="bi bi-upload me-1"></i> .docx Yükle
+                                <input type="file" id="uploadDocx" accept=".docx" style="display:none;">
+                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="wordOlarakIndir()">
+                                <i class="bi bi-download me-1"></i> Word İndir
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <!-- SunEditor -->
+                        <textarea id="sunEditorArea" style="display:none;"></textarea>
+                        <!-- Gizli form alanı -->
+                        <textarea name="content" id="content" style="display:none;"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-lg-4">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Şablon Ayarları</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="name" class="form-label form-label-required">Şablon Adı</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                value="{{ template.name if template else name }}" placeholder="Örn: Standart Şartname">
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Açıklama (Opsiyonel)</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                placeholder="Örn: Yerel tedarikçiler için standart format">{{ template.description if template else description }}</textarea>
+                        </div>
+                        <div class="mb-4 form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="is_active"
+                                name="is_active" {% if template and template.is_active %}checked{% elif not template
+                                %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Aktif Şablon</label>
+                            <div class="form-text">Pasif şablonlar sipariş ekranında görünmez.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 shadow-sm" onclick="return syncEditor()">
+                            <i class="bi bi-save me-1"></i> Şablonu Kaydet
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-4 variables-sidebar">
+                    <h6 class="font-weight-bold text-primary mb-3">
+                        <i class="bi bi-code-slash me-1"></i> Kullanılabilir Değişkenler
+                    </h6>
+                    <p class="text-muted small mb-3">Metne eklemek istediğiniz değişkene tıklayın.</p>
+
+                    <div class="accordion accordion-flush bg-transparent" id="variablesAccordion">
+                        <!-- Sipariş Değişkenleri -->
+                        <div class="accordion-item bg-transparent">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed px-2 py-2 bg-transparent" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#collapseOrder">
+                                    <strong class="text-dark"><i class="bi bi-cart me-2"></i> Sipariş Bilgisi</strong>
+                                </button>
+                            </h2>
+                            <div id="collapseOrder" class="accordion-collapse collapse show"
+                                data-bs-parent="#variablesAccordion">
+                                <div class="accordion-body p-2">
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; order_number &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; order_number &#x7D;&#x7D;</code><br>
+                                        <small class="text-muted">Sipariş No</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; order_date &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; order_date &#x7D;&#x7D;</code><br>
+                                        <small class="text-muted">Sipariş Tarihi</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; expected_delivery_date &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; expected_delivery_date &#x7D;&#x7D;</code><br>
+                                        <small class="text-muted">Beklenen Teslimat</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ürün Değişkenleri -->
+                        <div class="accordion-item bg-transparent">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed px-2 py-2 bg-transparent" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#collapseProduct">
+                                    <strong class="text-dark"><i class="bi bi-box me-2"></i> Ürün Bilgisi</strong>
+                                </button>
+                            </h2>
+                            <div id="collapseProduct" class="accordion-collapse collapse"
+                                data-bs-parent="#variablesAccordion">
+                                <div class="accordion-body p-2">
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; product_code &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; product_code &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Ürün Kodu</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; product_name &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; product_name &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Ürün Adı</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; quantity &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; quantity &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Miktar</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; unit_type &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; unit_type &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Birim</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; unit_price &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; unit_price &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Birim Fiyat</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; total_price &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; total_price &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Toplam Fiyat</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; currency &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; currency &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Para Birimi</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tedarikçi Değişkenleri -->
+                        <div class="accordion-item bg-transparent">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed px-2 py-2 bg-transparent" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#collapseSupplier">
+                                    <strong class="text-dark"><i class="bi bi-buildings me-2"></i> Tedarikçi
+                                        Bilgisi</strong>
+                                </button>
+                            </h2>
+                            <div id="collapseSupplier" class="accordion-collapse collapse"
+                                data-bs-parent="#variablesAccordion">
+                                <div class="accordion-body p-2">
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; supplier_name &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; supplier_name &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Firma Adı</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; supplier_contact &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; supplier_contact &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Yetkili Kişi</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; supplier_address &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; supplier_address &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">Adres</small>
+                                    </div>
+                                    <div class="variable-card p-2 mb-2 bg-white rounded"
+                                        data-id="&#x7B;&#x7B; supplier_tax &#x7D;&#x7D;">
+                                        <code>&#x7B;&#x7B; supplier_tax &#x7D;&#x7D;</code><br><small
+                                            class="text-muted">V. Dairesi ve No</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Bağımlılıklar -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<!-- SunEditor JS -->
+<script src="https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/suneditor@latest/src/lang/tr.js"></script>
+<script>
+    // SunEditor'ü başlat
+    const editor = SUNEDITOR.create('sunEditorArea', {
+        lang: SUNEDITOR_LANG['tr'],
+        width: '100%',
+        height: 'auto',
+        buttonList: [
+            ['undo', 'redo'],
+            ['font', 'fontSize', 'formatBlock'],
+            ['bold', 'underline', 'italic', 'strike', 'subscript', 'superscript'],
+            ['fontColor', 'hiliteColor', 'textStyle'],
+            ['removeFormat'],
+            ['outdent', 'indent'],
+            ['align', 'horizontalRule', 'list', 'lineHeight'],
+            ['table', 'link', 'image'],
+            ['fullScreen', 'showBlocks', 'codeView']
+        ]
+    });
+
+    // Mevcut şablon içeriğini (düzenleme modunda) editöre yükle
+    const editorInitContent = {{ (template.content if template else (content if content is defined and content else ''))| tojson }};
+    if (editorInitContent) {
+        editor.setContents(editorInitContent);
+    }
+
+    // Formda Kaydet butonuna basılınca içeriği gizli alana aktar
+    function syncEditor() {
+        var html = editor.getContents();
+        if (!html || html.trim() === '<p><br></p>') {
+            alert('Şablon içeriği boş olamaz.');
+            return false;
+        }
+        document.getElementById('content').value = html;
+        return true;
+    }
+
+    // Word (.docx) dosyası yükleme — Mammoth.js ile HTML'e çevir
+    document.getElementById('uploadDocx').addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            mammoth.convertToHtml({ arrayBuffer: e.target.result })
+                .then(function (result) {
+                    editor.setContents(result.value);
+                })
+                .catch(function (err) {
+                    console.error(err);
+                    alert('Dosya okunurken hata oluştu!');
+                });
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // Editör içeriğini Word (.docx) olarak indir
+    function wordOlarakIndir() {
+        var icerikHtml = editor.getContents();
+        if (!icerikHtml || icerikHtml.trim() === '<p><br></p>') {
+            alert('İndirilecek içerik yok!');
+            return;
+        }
+        var tamHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>' + icerikHtml + '</body></html>';
+        var converted = htmlDocx.asBlob(tamHtml);
+        saveAs(converted, 'sablon.docx');
+    }
+
+    // Değişken kartına tıklanınca imlece ekle
+    document.querySelectorAll('.variable-card').forEach(function (item) {
+        item.addEventListener('click', function () {
+            var variableTag = item.getAttribute('data-id');
+            editor.insertHTML(variableTag);
+        });
+    });
+</script>
+{% endblock %}

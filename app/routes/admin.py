@@ -6,6 +6,55 @@ from app.utils.decorators import roles_required
 
 admin_bp = Blueprint('admin_bp', __name__, url_prefix='/admin')
 
+@admin_bp.route('/users/create', methods=['POST'])
+@login_required
+@roles_required('admin')
+def create_user():
+    """Yeni kullanıcı oluşturma (Sadece Admin)"""
+    name = request.form.get('name', '').strip()
+    username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '')
+    role = request.form.get('role', 'purchasing')
+
+    if not name or not username or not password:
+        flash("Ad Soyad, kullanıcı adı ve şifre zorunludur.", "danger")
+        return redirect(url_for('admin_bp.manage_users'))
+
+    if role not in ['admin', 'manager', 'purchasing']:
+        flash("Geçersiz rol.", "danger")
+        return redirect(url_for('admin_bp.manage_users'))
+
+    if User.query.filter_by(username=username).first():
+        flash(f"'{username}' kullanıcı adı zaten kullanılıyor.", "danger")
+        return redirect(url_for('admin_bp.manage_users'))
+
+    if email and User.query.filter_by(email=email).first():
+        flash(f"'{email}' e-posta adresi zaten kayıtlı.", "danger")
+        return redirect(url_for('admin_bp.manage_users'))
+
+    new_user = User(
+        name=name,
+        username=username,
+        email=email if email else None,
+        role=role,
+        is_active=True
+    )
+    new_user.set_password(password)
+    db.session.add(new_user)
+
+    log = ActivityLog(
+        user_id=current_user.id,
+        action='create_user',
+        details=f"Admin '{username}' kullanıcısını '{role}' rolüyle oluşturdu.",
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f"{name} adlı kullanıcı başarıyla oluşturuldu.", "success")
+    return redirect(url_for('admin_bp.manage_users'))
+
 @admin_bp.route('/users')
 @login_required
 @roles_required('admin')

@@ -41,114 +41,46 @@
                 </div>
             </div>
 
-            <!-- 2. Ürün Bilgileri -->
+            <!-- 2. Sipariş Kalemleri (Çoklu Ürün) -->
             <div class="card shadow-sm border-0 rounded-4 mb-4">
-                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                    <h5 class="fw-bold text-info"><i class="bi bi-2-circle me-2"></i>Ürün Detayları</h5>
+                <div
+                    class="card-header bg-white border-bottom-0 pt-4 pb-2 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-info mb-0"><i class="bi bi-2-circle me-2"></i>Sipariş Kalemleri</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                        onclick="addOrderRow()">
+                        <i class="bi bi-plus-circle me-1"></i> Ürün Ekle
+                    </button>
                 </div>
-                <div class="card-body p-4">
-                    <div class="row g-3">
-                        <div class="col-md-5">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Stok Kodu <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" list="productList" name="product_code" id="product_code"
-                                class="form-control form-control-lg shadow-none bg-light"
-                                placeholder="Ürün Ara (örn: URN-001)" value="{{ product_code or '' }}" required
-                                autocomplete="off" onchange="autoFillProductDetails()">
-
-                            <datalist id="productList">
-                                {% for product in all_products %}
-                                <option value="{{ product.code }}" data-name="{{ product.name }}"
-                                    data-unit="{{ product.unit }}">
-                                    {{ product.name }}
-                                </option>
-                                {% endfor %}
-                            </datalist>
-                        </div>
-                        <div class="col-md-7">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Ürün Adı / Açıklaması
-                                <span class="text-danger">*</span></label>
-                            <input type="text" name="product_name" id="product_name"
-                                class="form-control form-control-lg shadow-none bg-light"
-                                placeholder="Ürün Kodu seçtiğinizde otomatik dolar..." required readonly>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. Miktar ve Fiyatlandırma -->
-            <div class="card shadow-sm border-0 rounded-4 mb-4">
-                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-                    <h5 class="fw-bold text-success"><i class="bi bi-3-circle me-2"></i>Sipariş Kalemleri</h5>
-                </div>
-                <div class="card-body p-4">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-4">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Miktar <span
-                                    class="text-danger">*</span></label>
-                            <div class="input-group input-group-lg shadow-sm">
-                                <input type="number" name="quantity" class="form-control border-end-0" step="0.01"
-                                    placeholder="0.00" required>
-                                <select name="unit_type" id="unit_type"
-                                    class="form-select border-start-0 bg-light text-muted" style="max-width: 100px;">
-                                    <option value="Adet">Adet</option>
-                                    <option value="Kg">Kg</option>
-                                    <option value="Lt">Lt</option>
-                                    <option value="Mt">Mt</option>
-                                    <option value="Paket">Pkt</option>
-                                    <option value="Kutu">Kutu</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {% if current_user.role in ['admin', 'manager'] %}
-                        <div class="col-md-5">
-                            <label class="form-label text-muted small fw-bold text-uppercase">Birim Fiyat <span
-                                    class="text-danger">*</span></label>
-                            <div class="input-group input-group-lg shadow-sm">
-                                <input type="number" name="unit_price" id="unit_price_input"
-                                    class="form-control border-end-0" step="0.01"
-                                    value="{% if price_suggestions %}{{ price_suggestions.price }}{% else %}{% endif %}"
-                                    placeholder="0.00" required>
-                                <select name="currency" class="form-select border-start-0 bg-light text-muted"
-                                    style="max-width: 110px;">
-                                    <option value="TRY" selected>TRY (₺)</option>
-                                    <option value="USD">USD ($)</option>
-                                    <option value="EUR">EUR (€)</option>
-                                </select>
-                            </div>
-                        </div>
-                        {% else %}
-                        <!-- Purchasing role submits 0 as default hidden price -->
-                        <input type="hidden" name="unit_price" value="0">
-                        <input type="hidden" name="currency" value="TRY">
-                        {% endif %}
-                    </div>
-
-                    {% if current_user.role in ['admin', 'manager'] and price_suggestions %}
-                    <!-- Akıllı Fiyat Önerisi Sadece Yöneticilere -->
-                    <div class="mt-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-success fw-bold mb-1"><i class="bi bi-robot me-1"></i> Akıllı Fiyat
-                                    Önerisi Bulundu</h6>
-                                <p class="small text-muted mb-0">Önerilen: <strong>{{
-                                        '{:,.2f}'.format(price_suggestions.price) }} {{ price_suggestions.currency
-                                        }}</strong>
-                                    {% if price_suggestions.source == 'supplier_catalog' %}
-                                    <span class="badge bg-success ms-2">Tedarikçi Kataloğu</span>
-                                    {% elif price_suggestions.source == 'historical_average' %}
-                                    <span class="badge bg-primary ms-2">Geçmiş Sipariş Ortalaması</span>
+                <div class="card-body p-0">
+                    <datalist id="productList">
+                        {% for product in all_products %}
+                        <option value="{{ product.code }}" data-name="{{ product.name }}"
+                            data-unit="{{ product.unit or 'Adet' }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="orderItemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3" style="min-width:140px">Stok Kodu <span
+                                            class="text-danger">*</span></th>
+                                    <th style="min-width:180px">Ürün Adı</th>
+                                    <th style="min-width:120px">Miktar <span class="text-danger">*</span></th>
+                                    <th style="min-width:90px">Birim</th>
+                                    {% if current_user.role in ['admin', 'manager'] %}
+                                    <th style="min-width:130px">Birim Fiyat</th>
+                                    <th style="min-width:100px">Para Birimi</th>
                                     {% endif %}
-                                </p>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 shadow-sm"
-                                onclick="document.getElementById('unit_price_input').value = '{{ price_suggestions.price }}'">
-                                <i class="bi bi-check2-circle"></i> Fiyatı Uygula
-                            </button>
-                        </div>
+                                    <th style="width:50px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderItemsBody">
+                                <!-- JS ile doldurulur -->
+                            </tbody>
+                        </table>
                     </div>
-                    {% endif %}
+                    <!-- Toplam Özet -->
+                    <div class="px-3 py-2 bg-light border-top text-end small text-muted" id="totalSummary"></div>
                 </div>
             </div>
 
@@ -213,50 +145,133 @@
 
 {% block extra_js %}
 <script>
-    function autoFillProductDetails() {
-        const input = document.getElementById('product_code');
+    const IS_MANAGER = {{ (current_user.role in ['admin', 'manager']) | tojson }};
+    let rowIdx = 0;
+
+    function buildRow(index) {
+        const priceFields = IS_MANAGER ? `
+            <td class="px-2">
+                <input type="number" name="unit_price[]" id="up-${index}"
+                    class="form-control form-control-sm" step="0.01" min="0"
+                    placeholder="0.00" value="0" oninput="updateTotal()">
+            </td>
+            <td class="px-2">
+                <select name="currency[]" id="cur-${index}" class="form-select form-select-sm bg-light">
+                    <option value="TRY" selected>TRY ₺</option>
+                    <option value="USD">USD $</option>
+                    <option value="EUR">EUR €</option>
+                </select>
+            </td>` : `
+            <input type="hidden" name="unit_price[]" value="0">
+            <input type="hidden" name="currency[]" value="TRY">`;
+
+        return `<tr id="row-${index}">
+            <td class="ps-3 pe-2">
+                <input type="text" list="productList" name="product_code[]" id="pc-${index}"
+                    class="form-control form-control-sm bg-light" placeholder="Örn: URN-001"
+                    autocomplete="off" onchange="autoFill(${index})" required>
+            </td>
+            <td class="px-2">
+                <input type="text" name="product_name[]" id="pn-${index}"
+                    class="form-control form-control-sm bg-light"
+                    placeholder="Otomatik dolar..." readonly>
+            </td>
+            <td class="px-2">
+                <input type="number" name="quantity[]" id="qty-${index}"
+                    class="form-control form-control-sm" step="0.01" min="0.01"
+                    placeholder="0.00" required oninput="updateTotal()">
+            </td>
+            <td class="px-2">
+                <select name="unit_type[]" id="ut-${index}" class="form-select form-select-sm bg-light">
+                    <option value="Adet">Adet</option>
+                    <option value="Kg">Kg</option>
+                    <option value="Lt">Lt</option>
+                    <option value="Mt">Mt</option>
+                    <option value="Paket">Pkt</option>
+                    <option value="Kutu">Kutu</option>
+                </select>
+            </td>
+            ${priceFields}
+            <td class="px-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(${index})"
+                    title="Satırı Sil"><i class="bi bi-trash"></i></button>
+            </td>
+        </tr>`;
+    }
+
+    function addOrderRow(prefillCode) {
+        document.getElementById('orderItemsBody').insertAdjacentHTML('beforeend', buildRow(rowIdx));
+        if (prefillCode) {
+            document.getElementById(`pc-${rowIdx}`).value = prefillCode;
+            autoFill(rowIdx);
+        }
+        rowIdx++;
+        updateTotal();
+    }
+
+    function removeRow(index) {
+        const tbody = document.getElementById('orderItemsBody');
+        if (tbody.rows.length <= 1) {
+            alert('En az bir ürün satırı olmalıdır.');
+            return;
+        }
+        document.getElementById(`row-${index}`).remove();
+        updateTotal();
+    }
+
+    function autoFill(index) {
+        const codeInput = document.getElementById(`pc-${index}`);
+        const nameInput = document.getElementById(`pn-${index}`);
+        const unitSelect = document.getElementById(`ut-${index}`);
+        const code = codeInput.value.trim();
         const dataList = document.getElementById('productList');
-        const options = dataList.options;
-        const selectedValue = input.value;
-        const nameInput = document.getElementById('product_name');
-
         let found = false;
-
-        for (let i = 0; i < options.length; i++) {
-            if (options[i].value === selectedValue) {
-                // Found the product! Fill in the name and unit
-                nameInput.value = options[i].getAttribute('data-name');
-                const unit = options[i].getAttribute('data-unit');
-                nameInput.readOnly = true; // Lock the field since it matches a real product
-
-                // Set the unit dropdown
-                const unitSelect = document.getElementById('unit_type');
-                for (let j = 0; j < unitSelect.options.length; j++) {
-                    if (unitSelect.options[j].value.toLowerCase() === unit.toLowerCase()) {
-                        unitSelect.selectedIndex = j;
-                        break;
+        for (let opt of dataList.options) {
+            if (opt.value === code) {
+                nameInput.value = opt.getAttribute('data-name');
+                const unit = (opt.getAttribute('data-unit') || 'adet').toLowerCase();
+                if (unitSelect) {
+                    for (let j = 0; j < unitSelect.options.length; j++) {
+                        if (unitSelect.options[j].value.toLowerCase() === unit) {
+                            unitSelect.selectedIndex = j;
+                            break;
+                        }
                     }
                 }
-
                 found = true;
                 break;
             }
         }
-
-        if (!found) {
-            // Unrecognized product code entered. Allow writing anything or enforce match?
-            // User requested a control mechanism, so let's clear it and warn.
+        if (!found && code) {
             nameInput.value = '';
             alert('Lütfen geçerli bir Stok Kodu seçiniz!');
-            input.value = '';
+            codeInput.value = '';
         }
     }
 
-    // Auto trigger on load if product_code is passed via URL
-    document.addEventListener("DOMContentLoaded", function () {
-        if (document.getElementById('product_code').value) {
-            autoFillProductDetails();
+    function updateTotal() {
+        if (!IS_MANAGER) return;
+        const tbody = document.getElementById('orderItemsBody');
+        const totals = {};
+        for (let row of tbody.rows) {
+            const idx = row.id.split('-')[1];
+            const qty = parseFloat(document.getElementById(`qty-${idx}`)?.value) || 0;
+            const price = parseFloat(document.getElementById(`up-${idx}`)?.value) || 0;
+            const cur = document.getElementById(`cur-${idx}`)?.value || 'TRY';
+            const line = qty * price;
+            if (line > 0) totals[cur] = (totals[cur] || 0) + line;
         }
+        const parts = Object.entries(totals).map(([c, v]) => `<strong>${c}</strong> ${v.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`);
+        document.getElementById('totalSummary').innerHTML = parts.length
+            ? 'Genel Toplam: ' + parts.join(' &nbsp;|&nbsp; ')
+            : '';
+    }
+
+    function updatePriceSuggestion() { } // placeholder
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const urlCode = "{{ product_code or '' }}";
+        addOrderRow(urlCode || null);
     });
 </script>
 {% endblock %}
