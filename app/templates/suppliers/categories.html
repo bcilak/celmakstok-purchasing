@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Tedarikçi Kategorileri / Etiketleri{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-tags"></i> Tedarikçi Kategorileri</h2>
+    <div>
+        <a href="{{ url_for('suppliers.index') }}" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-arrow-left"></i> Tedarikçilere Dön
+        </a>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+            <i class="bi bi-plus-circle"></i> Yeni Kategori Ekle
+        </button>
+    </div>
+</div>
+
+<div class="card shadow border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 50px;" class="ps-4">ID</th>
+                        <th>Kategori Adı</th>
+                        <th>Renk</th>
+                        <th>Oluşturulma Tarihi</th>
+                        <th class="text-end pe-4">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cat in categories %}
+                    <tr>
+                        <td class="ps-4 text-muted">#{{ cat.id }}</td>
+                        <td>
+                            <span class="badge bg-{{ cat.color }} fs-6">{{ cat.name }}</span>
+                        </td>
+                        <td>
+                            <span class="text-muted"><i class="bi bi-circle-fill text-{{ cat.color }} me-1"></i> {{ cat.color }}</span>
+                        </td>
+                        <td class="text-muted">
+                            {{ cat.created_at.strftime('%d.%m.%Y') }}
+                        </td>
+                        <td class="text-end pe-4">
+                            <!-- Edit Button -->
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCategoryModal{{ cat.id }}" title="Düzenle">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <!-- Delete Button -->
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteCategoryModal{{ cat.id }}" title="Sil">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    
+                    <!-- Edit Category Modal -->
+                    <div class="modal fade" id="editCategoryModal{{ cat.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form method="POST" action="{{ url_for('suppliers.edit_category', id=cat.id) }}">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Kategori Düzenle</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body text-start">
+                                        <div class="mb-3">
+                                            <label class="form-label">Kategori / Etiket Adı *</label>
+                                            <input type="text" name="name" class="form-control" value="{{ cat.name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Rozet Rengi</label>
+                                            <select name="color" class="form-select">
+                                                <option value="primary" {% if cat.color == 'primary' %}selected{% endif %}>Lacivert (Primary)</option>
+                                                <option value="secondary" {% if cat.color == 'secondary' %}selected{% endif %}>Gri (Secondary)</option>
+                                                <option value="success" {% if cat.color == 'success' %}selected{% endif %}>Yeşil (Success)</option>
+                                                <option value="danger" {% if cat.color == 'danger' %}selected{% endif %}>Kırmızı (Danger)</option>
+                                                <option value="warning" {% if cat.color == 'warning' %}selected{% endif %}>Sarı (Warning)</option>
+                                                <option value="info" {% if cat.color == 'info' %}selected{% endif %}>Açık Mavi (Info)</option>
+                                                <option value="dark" {% if cat.color == 'dark' %}selected{% endif %}>Siyah (Dark)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delete Category Modal -->
+                    <div class="modal fade" id="deleteCategoryModal{{ cat.id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form method="POST" action="{{ url_for('suppliers.delete_category', id=cat.id) }}">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Kategoriyi Sil</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body text-start">
+                                        <p><strong>{{ cat.name }}</strong> kategorisini silmek istediğinize emin misiniz?</p>
+                                        <p class="text-danger small"><i class="bi bi-exclamation-triangle"></i> Bu işlem bu etiketi kullanan tedarikçilerden de etiketin kalkmasına sebep olacaktır (ancak sistemde geçmişi tutulur).</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                                        <button type="submit" class="btn btn-danger">Evet, Sil</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            Henüz hiç kategori eklenmemiş.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('suppliers.add_category') }}">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title">Yeni Kategori Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Kategori / Etiket Adı *</label>
+                        <input type="text" name="name" class="form-control" required placeholder="Örn: Ana Tedarikçi, ISO Belgeli, Yurt Dışı...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rozet Rengi</label>
+                        <select name="color" class="form-select">
+                            <option value="primary">Lacivert (Primary)</option>
+                            <option value="secondary" selected>Gri (Secondary)</option>
+                            <option value="success">Yeşil (Success)</option>
+                            <option value="danger">Kırmızı (Danger)</option>
+                            <option value="warning">Sarı (Warning)</option>
+                            <option value="info">Açık Mavi (Info)</option>
+                            <option value="dark">Siyah (Dark)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary px-4">Ekle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

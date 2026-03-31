@@ -40,6 +40,21 @@ class ActivityLog(db.Model):
     
     user = db.relationship('User', backref=db.backref('activities', lazy='dynamic'))
 
+supplier_categories_map = db.Table('supplier_categories_map',
+    db.Column('supplier_id', db.Integer, db.ForeignKey('suppliers.id'), primary_key=True),
+    db.Column('category_id', db.Integer, db.ForeignKey('supplier_categories.id'), primary_key=True)
+)
+
+class SupplierCategory(db.Model):
+    """Tedarikçi İçin Çoklu Etiketler / Kategoriler"""
+    __tablename__ = 'supplier_categories'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    color = db.Column(db.String(20), default='secondary') # primary, success, danger vb.
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class Supplier(db.Model):
     """Tedarikçi Bilgileri"""
     __tablename__ = 'suppliers'
@@ -64,6 +79,7 @@ class Supplier(db.Model):
     status = db.Column(db.String(20), default='approved') # pending, approved, blacklisted
     
     # İlişkiler
+    categories = db.relationship('SupplierCategory', secondary=supplier_categories_map, backref=db.backref('suppliers', lazy='dynamic'))
     purchase_orders = db.relationship('PurchaseOrder', backref='supplier', lazy='dynamic')
     contacts = db.relationship('SupplierContact', backref='supplier', lazy='dynamic', cascade='all, delete-orphan')
     documents = db.relationship('SupplierDocument', backref='supplier', lazy='dynamic', cascade='all, delete-orphan')

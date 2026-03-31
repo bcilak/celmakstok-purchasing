@@ -71,9 +71,16 @@
                                 <td><strong>{{ supplier.name }}</strong></td>
                             </tr>
                             <tr>
-                                <th>Kategori:</th>
-                                <td><span class="badge bg-secondary">{{ supplier.supplier_category or 'Belirtilmemiş'
-                                        }}</span></td>
+                                <th>Kategoriler:</th>
+                                <td>
+                                    {% if supplier.categories %}
+                                        {% for cat in supplier.categories %}
+                                        <span class="badge bg-{{ cat.color }} me-1">{{ cat.name }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted small">Belirtilmemiş</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             <tr>
                                 <th>Statü:</th>
