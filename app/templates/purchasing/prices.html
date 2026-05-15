@@ -175,6 +175,71 @@
         const syncAllBtn = document.getElementById('syncAllPricesBtn');
         const syncAllStatus = document.getElementById('syncAllStatus');
 
+        async function parseJsonResponse(res) {
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                throw new Error('Sunucu JSON yerine HTML döndürdü. Sayfa yenilenmemiş olabilir; alternatif yansıtma deneniyor.');
+            }
+        }
+
+        async function syncPricesOneByOne() {
+            const res = await fetch('/api/v1/products/prices');
+            const data = await parseJsonResponse(res);
+            const savedPrices = data.prices || {};
+            const entries = Object.entries(savedPrices);
+
+            if (!entries.length) {
+                throw new Error('Senkronize edilecek kayıtlı fiyat bulunamadı.');
+            }
+
+            let synced = 0;
+            const errors = [];
+
+            for (const [code, priceData] of entries) {
+                try {
+                    const updateRes = await fetch('/api/v1/products/prices', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            product_code: code,
+                            unit_price: priceData.price,
+                            vat_rate: priceData.vat_rate
+                        })
+                    });
+                    const updateData = await parseJsonResponse(updateRes);
+                    if (!updateRes.ok || !updateData.success) {
+                        throw new Error(updateData.error || 'Güncelleme başarısız oldu');
+                    }
+                    synced++;
+                } catch (e) {
+                    errors.push({ product_code: code, error: e.message });
+                }
+            }
+
+            return {
+                success: errors.length === 0,
+                total: entries.length,
+                synced,
+                failed: errors.length,
+                errors
+            };
+        }
+
+        function showSyncResult(data) {
+            if (data.failed > 0) {
+                const failedCodes = (data.errors || []).map(e => e.product_code).join(', ');
+                syncAllStatus.className = 'alert alert-warning mx-2';
+                syncAllStatus.textContent = `${data.synced}/${data.total} fiyat yansıtıldı. ${data.failed} kayıt hata verdi${failedCodes ? ': ' + failedCodes : '.'}`;
+            } else {
+                syncAllStatus.className = 'alert alert-success mx-2';
+                syncAllStatus.textContent = `${data.synced} kayıtlı fiyat ana stok sistemine yansıtıldı.`;
+            }
+        }
+
         syncAllBtn.addEventListener('click', function () {
             const originalHTML = this.innerHTML;
             this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Yansıtılıyor...';
@@ -189,22 +254,19 @@
                 }
             })
                 .then(async res => {
-                    const data = await res.json();
+                    const data = await parseJsonResponse(res);
                     if (!res.ok && res.status !== 207) {
                         throw new Error(data.error || 'Toplu fiyat yansıtma başarısız oldu');
                     }
                     return data;
                 })
-                .then(data => {
-                    if (data.failed > 0) {
-                        const failedCodes = (data.errors || []).map(e => e.product_code).join(', ');
-                        syncAllStatus.className = 'alert alert-warning mx-2';
-                        syncAllStatus.textContent = `${data.synced}/${data.total} fiyat yansıtıldı. ${data.failed} kayıt hata verdi${failedCodes ? ': ' + failedCodes : '.'}`;
-                    } else {
-                        syncAllStatus.className = 'alert alert-success mx-2';
-                        syncAllStatus.textContent = `${data.synced} kayıtlı fiyat ana stok sistemine yansıtıldı.`;
-                    }
+                .catch(async e => {
+                    console.warn(e);
+                    syncAllStatus.className = 'alert alert-info mx-2';
+                    syncAllStatus.textContent = 'Toplu endpoint cevap vermedi; kayıtlı fiyatlar tek tek yansıtılıyor...';
+                    return syncPricesOneByOne();
                 })
+                .then(showSyncResult)
                 .catch(e => {
                     console.error(e);
                     syncAllStatus.className = 'alert alert-danger mx-2';
