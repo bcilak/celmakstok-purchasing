@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from app.models import PurchaseOrder, Supplier, ProductPrice
 from app.stock_api import StockAPIClient
+from app.utils.decorators import roles_required
 from app import db
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -171,3 +172,50 @@ def update_price():
     )
     
     return jsonify({"success": True, "message": "Fiyat güncellendi"})
+
+@main_bp.route('/api/v1/products/prices/sync-all', methods=['POST'])
+@login_required
+@roles_required('admin', 'manager')
+def sync_all_prices():
+    """Kayitli tum yerel fiyatlari ana stok sistemine toplu olarak yansit."""
+    prices = ProductPrice.query.order_by(ProductPrice.product_code).all()
+
+    if not prices:
+        return jsonify({
+            "success": False,
+            "error": "Senkronize edilecek kayitli fiyat bulunamadi",
+            "total": 0,
+            "synced": 0,
+            "failed": 0,
+            "errors": []
+        }), 400
+
+    api_client = StockAPIClient()
+    synced = 0
+    errors = []
+
+    for price in prices:
+        result = api_client.update_product_price(
+            product_code=price.product_code,
+            new_price=price.unit_price,
+            vat_rate=price.vat_rate,
+            currency=price.currency or 'TRY'
+        )
+
+        if result.get('success'):
+            synced += 1
+        else:
+            errors.append({
+                "product_code": price.product_code,
+                "error": result.get('error', 'Bilinmeyen hata')
+            })
+
+    failed = len(errors)
+    return jsonify({
+        "success": failed == 0,
+        "message": f"{synced} fiyat ana sisteme yansitildi",
+        "total": len(prices),
+        "synced": synced,
+        "failed": failed,
+        "errors": errors[:20]
+    }), 200 if failed == 0 else 207

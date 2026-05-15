@@ -123,7 +123,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4 px-2">
     <h5 class="text-secondary m-0">Arama Sonuçları <span id="resultCount" class="badge bg-secondary ms-2"
             style="display: none;">0</span></h5>
-    <div>
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" id="syncAllPricesBtn" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-cloud-upload"></i> Kayıtlı Tüm Fiyatları Yansıt
+        </button>
         {% if api_connected %}
         <span class="badge bg-success"><i class="bi bi-check-circle"></i> API Bağlı</span>
         {% else %}
@@ -131,6 +134,8 @@
         {% endif %}
     </div>
 </div>
+
+<div id="syncAllStatus" class="alert d-none mx-2" role="alert"></div>
 
 <!-- Dinamik Kartlar Alanı -->
 <div id="resultsArea" class="row">
@@ -167,6 +172,49 @@
         const resultsArea = document.getElementById('resultsArea');
         const emptyState = document.getElementById('emptyState');
         const resultCountBadge = document.getElementById('resultCount');
+        const syncAllBtn = document.getElementById('syncAllPricesBtn');
+        const syncAllStatus = document.getElementById('syncAllStatus');
+
+        syncAllBtn.addEventListener('click', function () {
+            const originalHTML = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Yansıtılıyor...';
+            this.disabled = true;
+            syncAllStatus.className = 'alert alert-info mx-2';
+            syncAllStatus.textContent = 'Kayıtlı fiyatlar ana stok sistemine gönderiliyor...';
+
+            fetch('/api/v1/products/prices/sync-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(async res => {
+                    const data = await res.json();
+                    if (!res.ok && res.status !== 207) {
+                        throw new Error(data.error || 'Toplu fiyat yansıtma başarısız oldu');
+                    }
+                    return data;
+                })
+                .then(data => {
+                    if (data.failed > 0) {
+                        const failedCodes = (data.errors || []).map(e => e.product_code).join(', ');
+                        syncAllStatus.className = 'alert alert-warning mx-2';
+                        syncAllStatus.textContent = `${data.synced}/${data.total} fiyat yansıtıldı. ${data.failed} kayıt hata verdi${failedCodes ? ': ' + failedCodes : '.'}`;
+                    } else {
+                        syncAllStatus.className = 'alert alert-success mx-2';
+                        syncAllStatus.textContent = `${data.synced} kayıtlı fiyat ana stok sistemine yansıtıldı.`;
+                    }
+                })
+                .catch(e => {
+                    console.error(e);
+                    syncAllStatus.className = 'alert alert-danger mx-2';
+                    syncAllStatus.textContent = e.message;
+                })
+                .finally(() => {
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                });
+        });
 
         // Arama Eylemi
         let debounceTimer;
