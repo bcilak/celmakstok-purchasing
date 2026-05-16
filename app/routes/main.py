@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, current_app, render_template, jsonify, request
 from flask_login import login_required, current_user
 from app.models import PurchaseOrder, Supplier, ProductPrice
 from app.stock_api import StockAPIClient
@@ -6,8 +6,42 @@ from app.utils.decorators import roles_required
 from app import db
 from sqlalchemy import func
 from datetime import datetime, timedelta
+import os
 
 main_bp = Blueprint('main', __name__)
+
+def _api_key_is_valid():
+    expected_key = current_app.config.get('PURCHASING_API_KEY') or os.environ.get('PURCHASING_API_KEY')
+    if not expected_key:
+        return True
+
+    provided_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+    auth_header = request.headers.get('Authorization', '')
+    if not provided_key and auth_header.startswith('Bearer '):
+        provided_key = auth_header[len('Bearer '):].strip()
+
+    return provided_key == expected_key
+
+def _product_price_payload(price_record):
+    return {
+        "success": True,
+        "product_code": price_record.product_code,
+        "unit_cost": price_record.unit_price,
+        "unit_price": price_record.unit_price,
+        "price": price_record.unit_price,
+        "cost": price_record.unit_price,
+        "currency": price_record.currency or "TRY",
+        "vat_rate": price_record.vat_rate,
+        "updated_at": price_record.updated_at.isoformat() if price_record.updated_at else None,
+        "data": {
+            "unit_cost": price_record.unit_price,
+            "unit_price": price_record.unit_price,
+            "price": price_record.unit_price,
+            "cost": price_record.unit_price,
+            "currency": price_record.currency or "TRY",
+            "vat_rate": price_record.vat_rate
+        }
+    }
 
 @main_bp.route('/')
 @login_required
@@ -129,6 +163,25 @@ def get_prices():
         "success": True,
         "prices": price_data
     })
+
+@main_bp.route('/api/v1/products/<path:product_code>/price', methods=['GET'])
+@main_bp.route('/api/v1/purchasing/product/<path:product_code>', methods=['GET'])
+@main_bp.route('/api/products/<path:product_code>/price', methods=['GET'])
+def get_product_price(product_code):
+    """Stok sisteminin urun koduna gore guncel satin alma fiyatini cekmesi icin API."""
+    if not _api_key_is_valid():
+        return jsonify({"success": False, "error": "Gecersiz API anahtari"}), 401
+
+    price_record = ProductPrice.query.filter_by(product_code=product_code).first()
+
+    if not price_record:
+        return jsonify({
+            "success": False,
+            "error": "Urun icin kayitli fiyat bulunamadi",
+            "product_code": product_code
+        }), 404
+
+    return jsonify(_product_price_payload(price_record))
 
 @main_bp.route('/api/v1/products/prices', methods=['POST'])
 @login_required
