@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, send_from_directory
 from flask_login import login_required, current_user
-from app.models import Supplier, SupplierProduct, PurchaseOrder, SupplierContact, SupplierDocument, SupplierCategory
+from app.models import Supplier, SupplierProduct, PurchaseOrder, SupplierContact, SupplierDocument
 from app import db
 import os
 from werkzeug.utils import secure_filename
@@ -48,11 +48,6 @@ def add():
                 rating=int(request.form.get('rating', 0))
             )
             
-            category_ids = request.form.getlist('category_ids')
-            if category_ids:
-                categories = SupplierCategory.query.filter(SupplierCategory.id.in_(category_ids)).all()
-                supplier.categories = categories
-            
             db.session.add(supplier)
             db.session.commit()
             
@@ -63,8 +58,7 @@ def add():
             db.session.rollback()
             flash(f'Tedarikçi eklenemedi: {str(e)}', 'danger')
     
-    categories = SupplierCategory.query.filter_by(is_active=True).all()
-    return render_template('suppliers/add.html', categories=categories)
+    return render_template('suppliers/add.html')
 
 @suppliers_bp.route('/<int:id>')
 @login_required
@@ -105,12 +99,7 @@ def edit(id):
             supplier.tax_office = request.form.get('tax_office')
             supplier.iban = request.form.get('iban')
             supplier.payment_terms = request.form.get('payment_terms')
-            
-            category_ids = request.form.getlist('category_ids')
-            categories = []
-            if category_ids:
-                categories = SupplierCategory.query.filter(SupplierCategory.id.in_(category_ids)).all()
-            supplier.categories = categories
+            supplier.supplier_category = request.form.get('supplier_category')
             if request.form.get('status'):
                 supplier.status = request.form.get('status')
             
@@ -123,8 +112,7 @@ def edit(id):
             db.session.rollback()
             flash(f'Güncelleme başarısız: {str(e)}', 'danger')
     
-    categories = SupplierCategory.query.filter_by(is_active=True).all()
-    return render_template('suppliers/edit.html', supplier=supplier, categories=categories)
+    return render_template('suppliers/edit.html', supplier=supplier)
 
 
 @suppliers_bp.route('/<int:id>/prices', methods=['GET', 'POST'])
@@ -351,83 +339,3 @@ def delete_document(id, doc_id):
         flash(f'Hata: {str(e)}', 'danger')
         
     return redirect(url_for('suppliers.view', id=id) + '#documents')
-
-
-# --- Kategori (Tag) Yönetimi Endpoint'leri ---
-
-@suppliers_bp.route('/categories')
-@login_required
-def categories_index():
-    """Tedarikçi Kategorileri / Etiketleri Listesi"""
-    categories = SupplierCategory.query.filter_by(is_active=True).order_by(SupplierCategory.name).all()
-    return render_template('suppliers/categories.html', categories=categories)
-
-@suppliers_bp.route('/categories/add', methods=['POST'])
-@login_required
-def add_category():
-    """Yeni Kategori Ekle"""
-    name = request.form.get('name')
-    color = request.form.get('color', 'secondary')
-    
-    if not name:
-        flash('Kategori adı boş olamaz.', 'danger')
-        return redirect(url_for('suppliers.categories_index'))
-        
-    try:
-        # Check if already exists but inactive
-        existing = SupplierCategory.query.filter_by(name=name).first()
-        if existing:
-            if not existing.is_active:
-                existing.is_active = True
-                existing.color = color
-                flash('Mevcut pasif kategori tekrar aktifleştirildi.', 'success')
-            else:
-                flash('Bu isimde bir kategori zaten var.', 'warning')
-        else:
-            new_cat = SupplierCategory(name=name, color=color)
-            db.session.add(new_cat)
-            flash('Kategori başarıyla eklendi.', 'success')
-            
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Hata: {str(e)}', 'danger')
-        
-    return redirect(url_for('suppliers.categories_index'))
-
-@suppliers_bp.route('/categories/<int:id>/edit', methods=['POST'])
-@login_required
-def edit_category(id):
-    """Kategori Düzenle"""
-    category = SupplierCategory.query.get_or_404(id)
-    name = request.form.get('name')
-    color = request.form.get('color')
-    
-    if name:
-        category.name = name
-    if color:
-        category.color = color
-        
-    try:
-        db.session.commit()
-        flash('Kategori güncellendi.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Hata: {str(e)}', 'danger')
-        
-    return redirect(url_for('suppliers.categories_index'))
-
-@suppliers_bp.route('/categories/<int:id>/delete', methods=['POST'])
-@login_required
-def delete_category(id):
-    """Kategori Sil (Soft Delete)"""
-    category = SupplierCategory.query.get_or_404(id)
-    try:
-        category.is_active = False
-        db.session.commit()
-        flash('Kategori silindi.', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Hata: {str(e)}', 'danger')
-        
-    return redirect(url_for('suppliers.categories_index'))

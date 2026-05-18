@@ -193,6 +193,60 @@
         font-weight: 600;
         margin: 0 6px;
     }
+
+    .bulk-modal-list {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        max-height: 430px;
+        overflow-y: auto;
+        background: #fff;
+    }
+
+    .bulk-product-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        border-bottom: 1px solid #f1f3f5;
+    }
+
+    .bulk-product-row:last-child {
+        border-bottom: 0;
+    }
+
+    .bulk-product-row:hover {
+        background: #f8fafc;
+    }
+
+    .bulk-product-row .product-name {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #212529;
+    }
+
+    .bulk-product-row .product-sub {
+        font-size: 0.78rem;
+        color: #6c757d;
+    }
+
+    .bulk-selected-table {
+        max-height: 430px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+
+    .bulk-selected-table table {
+        margin-bottom: 0;
+        font-size: 0.86rem;
+    }
+
+    .bulk-selected-table thead th {
+        position: sticky;
+        top: 0;
+        background: #f8f9fa;
+        z-index: 2;
+    }
 </style>
 {% endblock %}
 
@@ -237,6 +291,9 @@
     <h5 class="text-secondary m-0">Ürün Listesi <span id="resultCount" class="badge bg-secondary ms-2"
             style="display: none;">0</span></h5>
     <div class="d-flex align-items-center gap-2">
+        <button type="button" id="bulkPriceBtn" class="btn btn-sm btn-primary">
+            <i class="bi bi-ui-checks-grid"></i> Toplu Fiyat Guncelle
+        </button>
         <button type="button" id="syncAllPricesBtn" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-cloud-upload"></i> Kayıtlı Tüm Fiyatları Yansıt
         </button>
@@ -249,6 +306,84 @@
 </div>
 
 <div id="syncAllStatus" class="alert d-none mx-2" role="alert"></div>
+
+<div class="modal fade" id="bulkPriceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0">Toplu Fiyat Guncelle</h5>
+                    <small class="text-muted">Urunleri secin, fiyat/KDV girin ve tek seferde kaydedin.</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body">
+                <div id="bulkStatus" class="alert d-none" role="alert"></div>
+                <div class="row g-3">
+                    <div class="col-lg-5">
+                        <div class="d-flex gap-2 mb-2">
+                            <input type="text" id="bulkSearchInput" class="form-control form-control-sm"
+                                placeholder="Kod veya urun adi ara...">
+                            <select id="bulkFilterSelect" class="form-select form-select-sm" style="max-width: 170px;">
+                                <option value="all">Tum urunler</option>
+                                <option value="missing">Fiyatsizlar</option>
+                                <option value="hammadde">Hammadde</option>
+                                <option value="standard">Standart parca</option>
+                            </select>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted" id="bulkListInfo">0 urun</small>
+                            <button type="button" id="bulkSelectVisibleBtn" class="btn btn-sm btn-outline-secondary">
+                                Gorunenleri Sec
+                            </button>
+                        </div>
+                        <div id="bulkProductList" class="bulk-modal-list"></div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <strong>Secilenler <span id="bulkSelectedCount" class="badge bg-secondary">0</span></strong>
+                            <div class="d-flex gap-2">
+                                <div class="input-group input-group-sm" style="width: 190px;">
+                                    <span class="input-group-text">KDV</span>
+                                    <input type="number" step="0.1" id="bulkVatAllInput" class="form-control text-end"
+                                        value="20">
+                                    <button type="button" id="bulkApplyVatBtn" class="btn btn-outline-secondary">Uygula</button>
+                                </div>
+                                <button type="button" id="bulkClearBtn" class="btn btn-sm btn-outline-danger">Temizle</button>
+                            </div>
+                        </div>
+                        <div class="bulk-selected-table">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Urun</th>
+                                        <th style="width: 130px;">Fiyat</th>
+                                        <th style="width: 110px;">KDV</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bulkSelectedBody">
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-4">Henuz urun secilmedi.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <small class="text-muted">Fiyat bos veya negatif olamaz. Kayit sonrasi ana stok sistemine de yansitilir.</small>
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Iptal</button>
+                    <button type="button" id="bulkSaveBtn" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Secilenleri Guncelle
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Dinamik Kartlar Alanı -->
 <div id="resultsArea" class="row">
@@ -290,6 +425,20 @@
         const resultCountBadge = document.getElementById('resultCount');
         const syncAllBtn = document.getElementById('syncAllPricesBtn');
         const syncAllStatus = document.getElementById('syncAllStatus');
+        const bulkPriceBtn = document.getElementById('bulkPriceBtn');
+        const bulkPriceModalEl = document.getElementById('bulkPriceModal');
+        const bulkSearchInput = document.getElementById('bulkSearchInput');
+        const bulkFilterSelect = document.getElementById('bulkFilterSelect');
+        const bulkProductList = document.getElementById('bulkProductList');
+        const bulkListInfo = document.getElementById('bulkListInfo');
+        const bulkSelectedBody = document.getElementById('bulkSelectedBody');
+        const bulkSelectedCount = document.getElementById('bulkSelectedCount');
+        const bulkSelectVisibleBtn = document.getElementById('bulkSelectVisibleBtn');
+        const bulkApplyVatBtn = document.getElementById('bulkApplyVatBtn');
+        const bulkVatAllInput = document.getElementById('bulkVatAllInput');
+        const bulkClearBtn = document.getElementById('bulkClearBtn');
+        const bulkSaveBtn = document.getElementById('bulkSaveBtn');
+        const bulkStatus = document.getElementById('bulkStatus');
         const categoryFilter = document.getElementById('categoryFilter');
         const filterTabs = document.querySelectorAll('.filter-tab');
         const missingCount = document.getElementById('missingCount');
@@ -300,6 +449,8 @@
         const pageSize = 100;
         let currentPage = 1;
         let filteredProducts = [];
+        const bulkSelected = new Map();
+        let bulkVisibleProducts = [];
 
         function normalizeText(value) {
             return (value || '').toString().toLocaleLowerCase('tr-TR');
@@ -349,6 +500,26 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function getProductPrice(product) {
+            return parseFloat(product.unit_price || product.unit_cost || product.cost) || 0;
+        }
+
+        function getProductVat(product) {
+            return parseFloat(product.vat_rate) || 20.0;
+        }
+
+        function showBulkStatus(message, type = 'info') {
+            if (!bulkStatus) return;
+            bulkStatus.className = `alert alert-${type}`;
+            bulkStatus.textContent = message;
+        }
+
+        function hideBulkStatus() {
+            if (!bulkStatus) return;
+            bulkStatus.className = 'alert d-none';
+            bulkStatus.textContent = '';
         }
 
         function initializeCategoryFilter() {
@@ -472,6 +643,199 @@
             });
         }
 
+        function addBulkProduct(product) {
+            const code = product.code || '';
+            if (!code || bulkSelected.has(code)) return;
+            bulkSelected.set(code, {
+                code,
+                name: product.name || '',
+                category: product.category || '',
+                material: product.material_feature || product.material || '',
+                materialType: product.material_type || product.type || product.item_type || '',
+                unit_price: getProductPrice(product),
+                vat_rate: getProductVat(product),
+                currency: product.currency || 'TRY'
+            });
+        }
+
+        function removeBulkProduct(code) {
+            bulkSelected.delete(code);
+        }
+
+        function renderBulkProductList() {
+            if (!bulkProductList) return;
+            const query = normalizeText((bulkSearchInput && bulkSearchInput.value) || '');
+            const filter = (bulkFilterSelect && bulkFilterSelect.value) || 'all';
+
+            bulkVisibleProducts = products.filter(product => {
+                const textMatches = !query || productText(product).includes(query);
+                let filterMatches = true;
+                if (filter === 'missing') filterMatches = hasMissingPrice(product);
+                if (filter === 'hammadde') filterMatches = isRawMaterial(product);
+                if (filter === 'standard') filterMatches = isStandardPart(product);
+                return textMatches && filterMatches;
+            }).slice(0, 120);
+
+            if (bulkListInfo) {
+                bulkListInfo.textContent = `${bulkVisibleProducts.length} urun gosteriliyor`;
+            }
+
+            if (!bulkVisibleProducts.length) {
+                bulkProductList.innerHTML = '<div class="text-center text-muted py-4">Urun bulunamadi.</div>';
+                return;
+            }
+
+            bulkProductList.innerHTML = bulkVisibleProducts.map(product => {
+                const code = escapeHtml(product.code || '');
+                const name = escapeHtml(product.name || '');
+                const material = escapeHtml(product.material_feature || product.material || '-');
+                const materialType = escapeHtml(product.material_type || product.type || product.item_type || '-');
+                const checked = bulkSelected.has(product.code || '') ? 'checked' : '';
+                return `
+                    <label class="bulk-product-row">
+                        <input type="checkbox" class="form-check-input bulk-product-check mt-1" data-code="${code}" ${checked}>
+                        <span class="flex-grow-1 min-w-0">
+                            <span class="product-name d-block text-truncate" title="${name}">${name}</span>
+                            <span class="product-sub d-block text-truncate">${code} | ${material} | ${materialType}</span>
+                        </span>
+                    </label>
+                `;
+            }).join('');
+
+            bulkProductList.querySelectorAll('.bulk-product-check').forEach(check => {
+                check.addEventListener('change', function () {
+                    const product = products.find(p => p.code === this.dataset.code);
+                    if (!product) return;
+                    if (this.checked) {
+                        addBulkProduct(product);
+                    } else {
+                        removeBulkProduct(this.dataset.code);
+                    }
+                    renderBulkSelected();
+                });
+            });
+        }
+
+        function renderBulkSelected() {
+            if (!bulkSelectedBody) return;
+            const selected = Array.from(bulkSelected.values());
+            if (bulkSelectedCount) bulkSelectedCount.textContent = selected.length;
+            if (!selected.length) {
+                bulkSelectedBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Henuz urun secilmedi.</td></tr>';
+                return;
+            }
+
+            bulkSelectedBody.innerHTML = selected.map(item => `
+                <tr data-code="${escapeHtml(item.code)}">
+                    <td>
+                        <div class="fw-semibold text-truncate" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                        <div class="small text-muted text-truncate">${escapeHtml(item.code)} | ${escapeHtml(item.material || '-')}</div>
+                    </td>
+                    <td>
+                        <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end bulk-price-input"
+                            value="${Number(item.unit_price || 0).toFixed(2)}">
+                    </td>
+                    <td>
+                        <input type="number" step="0.1" min="0" class="form-control form-control-sm text-end bulk-vat-input"
+                            value="${Number(item.vat_rate || 20).toFixed(1)}">
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger bulk-remove-btn" title="Kaldir">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            bulkSelectedBody.querySelectorAll('tr[data-code]').forEach(row => {
+                const code = row.dataset.code;
+                const item = bulkSelected.get(code);
+                if (!item) return;
+                row.querySelector('.bulk-price-input').addEventListener('input', function () {
+                    item.unit_price = this.value;
+                });
+                row.querySelector('.bulk-vat-input').addEventListener('input', function () {
+                    item.vat_rate = this.value;
+                });
+                row.querySelector('.bulk-remove-btn').addEventListener('click', function () {
+                    removeBulkProduct(code);
+                    renderBulkSelected();
+                    renderBulkProductList();
+                });
+            });
+        }
+
+        function openBulkModal() {
+            hideBulkStatus();
+            renderBulkProductList();
+            renderBulkSelected();
+            const modal = bootstrap.Modal.getOrCreateInstance(bulkPriceModalEl);
+            modal.show();
+            setTimeout(() => bulkSearchInput && bulkSearchInput.focus(), 150);
+        }
+
+        async function saveBulkPrices() {
+            const selected = Array.from(bulkSelected.values());
+            if (!selected.length) {
+                showBulkStatus('Once en az bir urun secin.', 'warning');
+                return;
+            }
+
+            const items = [];
+            for (const item of selected) {
+                const price = parseFloat(item.unit_price);
+                const vat = parseFloat(item.vat_rate);
+                if (!Number.isFinite(price) || price < 0) {
+                    showBulkStatus(`${item.code} icin gecerli fiyat girin.`, 'warning');
+                    return;
+                }
+                items.push({
+                    product_code: item.code,
+                    unit_price: price,
+                    vat_rate: Number.isFinite(vat) ? vat : 20,
+                    currency: item.currency || 'TRY'
+                });
+            }
+
+            const originalHTML = bulkSaveBtn.innerHTML;
+            bulkSaveBtn.disabled = true;
+            bulkSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Kaydediliyor...';
+            showBulkStatus('Secilen fiyatlar kaydediliyor...', 'info');
+
+            try {
+                const res = await fetch('/api/v1/products/prices/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                const data = await parseJsonResponse(res);
+                if (!res.ok && res.status !== 207) {
+                    throw new Error(data.error || 'Toplu fiyat guncelleme basarisiz oldu');
+                }
+
+                (data.results || []).forEach(result => {
+                    if (!result.success) return;
+                    const pIndex = products.findIndex(p => p.code === result.product_code);
+                    if (pIndex !== -1) {
+                        products[pIndex].unit_price = result.unit_price;
+                        products[pIndex].vat_rate = result.vat_rate;
+                        products[pIndex].currency = result.currency || products[pIndex].currency || 'TRY';
+                    }
+                });
+
+                updateFilterCounts();
+                applyFilters(false);
+                const syncNote = data.sync_errors && data.sync_errors.length ? ` Ana stokta ${data.sync_errors.length} senkron hatasi var.` : '';
+                showBulkStatus(`${data.updated || 0} fiyat guncellendi.${syncNote}`, data.failed ? 'warning' : 'success');
+            } catch (e) {
+                console.error(e);
+                showBulkStatus(e.message, 'danger');
+            } finally {
+                bulkSaveBtn.innerHTML = originalHTML;
+                bulkSaveBtn.disabled = false;
+            }
+        }
+
         filterTabs.forEach(tab => {
             tab.addEventListener('click', function () {
                 activeFilter = this.dataset.filter;
@@ -485,6 +849,47 @@
         initializeCategoryFilter();
         updateFilterCounts();
         applyFilters(true);
+
+        if (bulkPriceBtn && bulkPriceModalEl) {
+            bulkPriceBtn.addEventListener('click', openBulkModal);
+        }
+        if (bulkSearchInput) {
+            bulkSearchInput.addEventListener('input', renderBulkProductList);
+        }
+        if (bulkFilterSelect) {
+            bulkFilterSelect.addEventListener('change', renderBulkProductList);
+        }
+        if (bulkSelectVisibleBtn) {
+            bulkSelectVisibleBtn.addEventListener('click', function () {
+                bulkVisibleProducts.forEach(addBulkProduct);
+                renderBulkProductList();
+                renderBulkSelected();
+            });
+        }
+        if (bulkApplyVatBtn) {
+            bulkApplyVatBtn.addEventListener('click', function () {
+                const vat = parseFloat(bulkVatAllInput.value);
+                if (!Number.isFinite(vat)) {
+                    showBulkStatus('Gecerli bir KDV orani girin.', 'warning');
+                    return;
+                }
+                bulkSelected.forEach(item => {
+                    item.vat_rate = vat;
+                });
+                renderBulkSelected();
+            });
+        }
+        if (bulkClearBtn) {
+            bulkClearBtn.addEventListener('click', function () {
+                bulkSelected.clear();
+                renderBulkProductList();
+                renderBulkSelected();
+                hideBulkStatus();
+            });
+        }
+        if (bulkSaveBtn) {
+            bulkSaveBtn.addEventListener('click', saveBulkPrices);
+        }
 
         async function parseJsonResponse(res) {
             const text = await res.text();

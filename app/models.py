@@ -40,21 +40,6 @@ class ActivityLog(db.Model):
     
     user = db.relationship('User', backref=db.backref('activities', lazy='dynamic'))
 
-supplier_categories_map = db.Table('supplier_categories_map',
-    db.Column('supplier_id', db.Integer, db.ForeignKey('suppliers.id'), primary_key=True),
-    db.Column('category_id', db.Integer, db.ForeignKey('supplier_categories.id'), primary_key=True)
-)
-
-class SupplierCategory(db.Model):
-    """Tedarikçi İçin Çoklu Etiketler / Kategoriler"""
-    __tablename__ = 'supplier_categories'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    color = db.Column(db.String(20), default='secondary') # primary, success, danger vb.
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 class Supplier(db.Model):
     """Tedarikçi Bilgileri"""
     __tablename__ = 'suppliers'
@@ -79,7 +64,6 @@ class Supplier(db.Model):
     status = db.Column(db.String(20), default='approved') # pending, approved, blacklisted
     
     # İlişkiler
-    categories = db.relationship('SupplierCategory', secondary=supplier_categories_map, backref=db.backref('suppliers', lazy='dynamic'))
     purchase_orders = db.relationship('PurchaseOrder', backref='supplier', lazy='dynamic')
     contacts = db.relationship('SupplierContact', backref='supplier', lazy='dynamic', cascade='all, delete-orphan')
     documents = db.relationship('SupplierDocument', backref='supplier', lazy='dynamic', cascade='all, delete-orphan')
@@ -153,7 +137,6 @@ class PurchaseOrder(db.Model):
     
     # Notlar ve takip
     notes = db.Column(db.Text)
-    batch_number = db.Column(db.String(50), nullable=True, index=True)  # Aynı formdan gelen siparişleri gruplar
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -251,19 +234,4 @@ class ProductPrice(db.Model):
     vat_rate = db.Column(db.Float, default=20.0)  # KDV oranı (%)
     currency = db.Column(db.String(10), default='TRY')
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class OrderTemplate(db.Model):
-    """Sipariş Çıktı Şablonları"""
-    __tablename__ = 'order_templates'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
-    description = db.Column(db.String(255))
-    content = db.Column(db.Text, nullable=False) # HTML formatında şablon içeriği
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    
-    created_by = db.relationship('User', backref='created_templates')
 

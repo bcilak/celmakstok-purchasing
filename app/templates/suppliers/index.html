@@ -35,16 +35,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">{{ supplier.name }}</h5>
-                <p class="text-muted mb-1"><code>{{ supplier.code }}</code></p>
-                {% if supplier.categories %}
-                <div class="mb-3">
-                    {% for cat in supplier.categories %}
-                    <span class="badge bg-{{ cat.color }}">{{ cat.name }}</span>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="mb-3"></div>
-                {% endif %}
+                <p class="text-muted"><code>{{ supplier.code }}</code></p>
 
                 <div class="mb-2">
                     <small>

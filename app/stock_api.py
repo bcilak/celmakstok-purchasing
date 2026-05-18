@@ -2,33 +2,6 @@ import requests
 from flask import current_app
 from datetime import datetime, timedelta
 import os
-import threading
-
-class TTLCache:
-    def __init__(self, ttl_seconds):
-        self.ttl = ttl_seconds
-        self.cache = {}
-        self.lock = threading.Lock()
-
-    def get(self, key):
-        with self.lock:
-            if key in self.cache:
-                data, expiry = self.cache[key]
-                if datetime.now() < expiry:
-                    return data
-                else:
-                    del self.cache[key]
-            return None
-
-    def set(self, key, value):
-        with self.lock:
-            self.cache[key] = (value, datetime.now() + timedelta(seconds=self.ttl))
-
-    def clear(self):
-        with self.lock:
-            self.cache.clear()
-
-global_api_cache = TTLCache(ttl_seconds=300)
 
 class StockAPIClient:
     """Ana Stok Uygulaması ile İletişim"""
@@ -151,10 +124,6 @@ class StockAPIClient:
         if self.use_local_mode:
             return self._get_mock_critical_products()
         
-        cached_data = global_api_cache.get('critical_products')
-        if cached_data:
-            return cached_data
-            
         try:
             url = f"{self.base_url}/api/v1/purchasing/critical-products"
             response = requests.get(url, headers=self._get_headers(), timeout=10)
@@ -163,14 +132,12 @@ class StockAPIClient:
                 data = response.json()
                 # API formatı {'products': [...]} veya {'data': [...]} olabilir
                 product_list = data.get('products', data.get('data', []))
-                result = {
+                return {
                     'success': True,
                     'products': product_list,
                     'count': data.get('count', len(product_list)),
                     'mode': 'api'
                 }
-                global_api_cache.set('critical_products', result)
-                return result
             else:
                 # API hatası durumunda mock data dön
                 print(f"API Error: {response.status_code}, falling back to local mode")
@@ -185,10 +152,6 @@ class StockAPIClient:
         if self.use_local_mode:
             return self._get_mock_critical_products() # mockup returns critical ones as ALL for now
 
-        cached_data = global_api_cache.get('all_products')
-        if cached_data:
-            return cached_data
-
         try:
             # /critical-products endpoint'i mevcut ana uygulamada tüm aktif ürünleri dönüyor
             # Hata olasılığına karşı kullanıcıda çalıştığını bildiğimiz endpointi kullanıyoruz.
@@ -198,14 +161,12 @@ class StockAPIClient:
             if response.status_code == 200:
                 data = response.json()
                 product_list = data.get('products', data.get('data', []))
-                result = {
+                return {
                     'success': True,
                     'products': product_list,
                     'count': data.get('count', len(product_list)),
                     'mode': 'api'
                 }
-                global_api_cache.set('all_products', result)
-                return result
             else:
                 print(f"API Error in get_all_products: {response.status_code}, falling back")
                 return self._get_mock_critical_products()
@@ -234,9 +195,12 @@ class StockAPIClient:
         
         try:
             # Önce kritik ürünler listesinden çek
-            crit_data = self.get_critical_products()
-            if crit_data.get('success'):
-                products = crit_data.get('products', [])
+            url = f"{self.base_url}/api/v1/purchasing/critical-products"
+            response = requests.get(url, headers=self._get_headers(), timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                products = data.get('products', [])
                 
                 # Ürünü listede bul
                 for product in products:
