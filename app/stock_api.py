@@ -148,32 +148,45 @@ class StockAPIClient:
             return self._get_mock_critical_products()
 
     def get_all_products(self):
-        """Tüm ürünleri getir (Arama ve yeni sipariş için)"""
+        """Tum urunleri getir; fiyat yonetiminde demo fallback kullanma."""
         if self.use_local_mode:
-            return self._get_mock_critical_products() # mockup returns critical ones as ALL for now
-
-        try:
-            # /critical-products endpoint'i mevcut ana uygulamada tüm aktif ürünleri dönüyor
-            # Hata olasılığına karşı kullanıcıda çalıştığını bildiğimiz endpointi kullanıyoruz.
-            url = f"{self.base_url}/api/v1/purchasing/critical-products"
-            response = requests.get(url, headers=self._get_headers(), timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                product_list = data.get('products', data.get('data', []))
-                return {
-                    'success': True,
-                    'products': product_list,
-                    'count': data.get('count', len(product_list)),
-                    'mode': 'api'
-                }
-            else:
-                print(f"API Error in get_all_products: {response.status_code}, falling back")
-                return self._get_mock_critical_products()
-        except Exception as e:
-            print(f"Connection Error in get_all_products: {str(e)}")
             return self._get_mock_critical_products()
-    
+
+        last_error = None
+        endpoints = (
+            "/api/v1/purchasing/products",
+            "/api/v1/purchasing/critical-products",
+        )
+
+        for endpoint in endpoints:
+            try:
+                url = f"{self.base_url}{endpoint}"
+                response = requests.get(url, headers=self._get_headers(), timeout=10)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    product_list = data.get('products', data.get('data', []))
+                    return {
+                        'success': True,
+                        'products': product_list,
+                        'count': data.get('count', len(product_list)),
+                        'mode': 'api'
+                    }
+
+                last_error = f"HTTP {response.status_code}"
+                print(f"API Error in get_all_products ({endpoint}): {response.status_code}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"Connection Error in get_all_products ({endpoint}): {last_error}")
+
+        return {
+            'success': False,
+            'products': [],
+            'count': 0,
+            'mode': 'api',
+            'error': last_error or 'Ana stok API urun listesi alinamadi'
+        }
+
     def get_product_detail(self, product_code):
         """Belirli bir ürünün detaylı bilgisini getir"""
         # Local mode kontrolü

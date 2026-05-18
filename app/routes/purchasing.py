@@ -213,7 +213,7 @@ def index():
 def manage_prices():
     """Tüm Ürünlerin Fiyat ve KDV Yönetimi Sayfası"""
     api_client = StockAPIClient()
-    api_response = api_client.get_critical_products()
+    api_response = api_client.get_all_products()
     all_products = api_response.get('products', [])
     
     local_prices = {p.product_code: {'price': p.unit_price, 'vat': p.vat_rate} for p in ProductPrice.query.all()}
