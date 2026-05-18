@@ -104,6 +104,45 @@
         margin-bottom: 20px;
         color: #dee2e6;
     }
+
+    .filter-panel {
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 20px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
+    }
+
+    .filter-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filter-tab {
+        border: 1px solid #dee2e6;
+        background: #fff;
+        color: #495057;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .filter-tab.active {
+        border-color: #0d6efd;
+        background: #0d6efd;
+        color: #fff;
+    }
+
+    .filter-tab .badge {
+        margin-left: 6px;
+    }
+
+    .category-filter {
+        min-width: 240px;
+    }
 </style>
 {% endblock %}
 
@@ -111,7 +150,7 @@
 <!-- Arama Alanı -->
 <div class="search-hero">
     <h2 class="mb-3"><i class="bi bi-box-seam"></i> Fiyat & KDV Yönetimi</h2>
-    <p class="mb-4 text-light opacity-75">Ürün kodunu veya adını yazarak aradığınız ürünü anında bulun</p>
+    <p class="mb-4 text-light opacity-75">Sekme, kategori veya arama ile fiyat güncellenecek ürünleri hızlıca bulun</p>
 
     <div class="search-input-wrapper">
         <i class="bi bi-search"></i>
@@ -120,8 +159,32 @@
     </div>
 </div>
 
+<div class="filter-panel">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="filter-tabs" role="tablist" aria-label="Fiyat filtreleri">
+            <button type="button" class="filter-tab active" data-filter="missing">
+                Fiyatı Girilmemiş <span class="badge bg-light text-dark" id="missingCount">0</span>
+            </button>
+            <button type="button" class="filter-tab" data-filter="hammadde">
+                Hammadde <span class="badge bg-light text-dark" id="rawCount">0</span>
+            </button>
+            <button type="button" class="filter-tab" data-filter="standard">
+                Hazır Standart Parça <span class="badge bg-light text-dark" id="standardCount">0</span>
+            </button>
+            <button type="button" class="filter-tab" data-filter="all">
+                Tümü <span class="badge bg-light text-dark" id="allCount">0</span>
+            </button>
+        </div>
+        <div class="category-filter">
+            <select id="categoryFilter" class="form-select form-select-sm">
+                <option value="">Tüm Kategoriler</option>
+            </select>
+        </div>
+    </div>
+</div>
+
 <div class="d-flex justify-content-between align-items-center mb-4 px-2">
-    <h5 class="text-secondary m-0">Arama Sonuçları <span id="resultCount" class="badge bg-secondary ms-2"
+    <h5 class="text-secondary m-0">Ürün Listesi <span id="resultCount" class="badge bg-secondary ms-2"
             style="display: none;">0</span></h5>
     <div class="d-flex align-items-center gap-2">
         <button type="button" id="syncAllPricesBtn" class="btn btn-sm btn-outline-primary">
@@ -174,6 +237,117 @@
         const resultCountBadge = document.getElementById('resultCount');
         const syncAllBtn = document.getElementById('syncAllPricesBtn');
         const syncAllStatus = document.getElementById('syncAllStatus');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const filterTabs = document.querySelectorAll('.filter-tab');
+        const missingCount = document.getElementById('missingCount');
+        const rawCount = document.getElementById('rawCount');
+        const standardCount = document.getElementById('standardCount');
+        const allCount = document.getElementById('allCount');
+        let activeFilter = 'missing';
+
+        function normalizeText(value) {
+            return (value || '').toString().toLocaleLowerCase('tr-TR');
+        }
+
+        function productText(product) {
+            return [
+                product.code,
+                product.name,
+                product.category,
+                product.material,
+                product.item_type,
+                product.type,
+                product.product_type
+            ].map(normalizeText).join(' ');
+        }
+
+        function hasMissingPrice(product) {
+            const price = parseFloat(product.unit_price);
+            return !Number.isFinite(price) || price <= 0;
+        }
+
+        function isRawMaterial(product) {
+            const text = productText(product);
+            return text.includes('hammadde') || text.includes('ham madde') || text.includes('sac') ||
+                text.includes('profil') || text.includes('boru') || text.includes('mil') ||
+                text.includes('lama') || text.includes('köşebent') || text.includes('kosebent');
+        }
+
+        function isStandardPart(product) {
+            const text = productText(product);
+            return text.includes('standart') || text.includes('hazır') || text.includes('hazir') ||
+                text.includes('civata') || text.includes('vida') || text.includes('somun') ||
+                text.includes('pul') || text.includes('rulman') || text.includes('segman') ||
+                text.includes('yay') || text.includes('pim');
+        }
+
+        function escapeHtml(value) {
+            return (value || '').toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function initializeCategoryFilter() {
+            const categories = [...new Set(products.map(p => p.category).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'tr'));
+
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        function updateFilterCounts() {
+            missingCount.textContent = products.filter(hasMissingPrice).length;
+            rawCount.textContent = products.filter(isRawMaterial).length;
+            standardCount.textContent = products.filter(isStandardPart).length;
+            allCount.textContent = products.length;
+        }
+
+        function matchesActiveFilter(product) {
+            if (activeFilter === 'missing') {
+                return hasMissingPrice(product);
+            }
+            if (activeFilter === 'hammadde') {
+                return isRawMaterial(product);
+            }
+            if (activeFilter === 'standard') {
+                return isStandardPart(product);
+            }
+            return true;
+        }
+
+        function applyFilters() {
+            const query = normalizeText(searchInput.value.trim());
+            const selectedCategory = categoryFilter.value;
+
+            const matches = products.filter(product => {
+                const categoryMatches = !selectedCategory || product.category === selectedCategory;
+                const textMatches = !query || productText(product).includes(query);
+                return categoryMatches && textMatches && matchesActiveFilter(product);
+            });
+
+            renderCards(matches.slice(0, 100), matches.length);
+        }
+
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', function () {
+                activeFilter = this.dataset.filter;
+                filterTabs.forEach(item => item.classList.remove('active'));
+                this.classList.add('active');
+                applyFilters();
+            });
+        });
+
+        categoryFilter.addEventListener('change', applyFilters);
+        initializeCategoryFilter();
+        updateFilterCounts();
+        applyFilters();
 
         async function parseJsonResponse(res) {
             const text = await res.text();
@@ -282,26 +456,8 @@
         let debounceTimer;
         searchInput.addEventListener('input', function () {
             clearTimeout(debounceTimer);
-            const query = this.value.trim().toLowerCase();
-
             debounceTimer = setTimeout(() => {
-                if (query.length < 2) {
-                    // Temizle veya başlangıç durumuna dön
-                    resultsArea.innerHTML = '';
-                    resultsArea.appendChild(emptyState);
-                    emptyState.style.display = 'block';
-                    resultCountBadge.style.display = 'none';
-                    return;
-                }
-
-                // Sadece eşleşenleri bul (Sınırlama: Performans için ilk 50 kartı gösterelim ki tarayıcı donmasın)
-                const matches = products.filter(p => {
-                    const code = (p.code || '').toLowerCase();
-                    const name = (p.name || '').toLowerCase();
-                    return code.includes(query) || name.includes(query);
-                });
-
-                renderCards(matches.slice(0, 50), matches.length);
+                applyFilters();
             }, 300); // 300ms gecikmeli arama (performans için)
         });
 
@@ -314,8 +470,8 @@
                     <div class="col-12">
                         <div class="empty-state">
                             <i class="bi bi-emoji-frown"></i>
-                            <h4>Sonuç Bulunamadı</h4>
-                            <p>Aradığınız kriterlere uygun bir ürün stokta yok.</p>
+                            <h4>Ürün Bulunamadı</h4>
+                            <p>Seçili sekme, kategori veya arama kriterine uygun ürün yok.</p>
                         </div>
                     </div>
                 `;
@@ -327,18 +483,20 @@
             // Kartları oluştur
             let html = '';
             matches.forEach(product => {
-                const category = product.category || 'Belirtilmemiş';
+                const category = escapeHtml(product.category || 'Belirtilmemiş');
                 const currentStock = product.current_stock || 0;
-                const unit = product.unit || 'Adet';
-                const price = (product.unit_price || 0).toFixed(2);
-                const vat = (product.vat_rate || 20.0).toFixed(1);
+                const unit = escapeHtml(product.unit || 'Adet');
+                const price = (parseFloat(product.unit_price) || 0).toFixed(2);
+                const vat = (parseFloat(product.vat_rate) || 20.0).toFixed(1);
+                const name = escapeHtml(product.name || '');
+                const code = escapeHtml(product.code || '');
 
                 html += `
                 <div class="col-md-6 col-lg-4 col-xl-3">
                     <div class="product-card">
                         <div class="card-header">
-                            <span class="text-truncate mr-2" style="max-width: 70%;" title="${product.name}">${product.name}</span>
-                            <span class="badge bg-light text-dark border">${product.code}</span>
+                            <span class="text-truncate mr-2" style="max-width: 70%;" title="${name}">${name}</span>
+                            <span class="badge bg-light text-dark border">${code}</span>
                         </div>
                         <div class="card-body">
                             <div class="d-flex justify-content-between mb-3 text-muted" style="font-size: 0.85rem;">
@@ -353,7 +511,7 @@
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">₺</span>
                                             <input type="number" step="0.01" class="form-control text-end price-input" 
-                                                data-product="${product.code}" value="${price}">
+                                                data-product="${code}" value="${price}">
                                         </div>
                                     </div>
                                 </div>
@@ -363,14 +521,14 @@
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">%</span>
                                             <input type="number" step="0.1" class="form-control text-end vat-input" 
-                                                data-product="${product.code}" value="${vat}">
+                                                data-product="${code}" value="${vat}">
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="card-footer text-end">
-                            <button class="btn btn-sm btn-primary w-100 save-btn fw-bold" data-product="${product.code}">
+                            <button class="btn btn-sm btn-primary w-100 save-btn fw-bold" data-product="${code}">
                                 <i class="bi bi-save"></i> Fiyatı Güncelle
                             </button>
                         </div>
@@ -379,10 +537,10 @@
                 `;
             });
 
-            if (totalMatchCount > 50) {
+            if (totalMatchCount > 100) {
                 html += `
                 <div class="col-12 mt-3 text-center text-muted">
-                    <small><i>Sadece ilk 50 sonuç listelendi. Daha spesifik arama yapabilirsiniz (${totalMatchCount} eşleşme bulundu).</i></small>
+                    <small><i>Sadece ilk 100 sonuç listelendi. Daha spesifik arama veya kategori seçebilirsiniz (${totalMatchCount} eşleşme bulundu).</i></small>
                 </div>
                 `;
             }
@@ -400,8 +558,9 @@
             btns.forEach(btn => {
                 btn.addEventListener('click', function () {
                     const code = this.dataset.product;
-                    const priceInput = document.querySelector(`.price-input[data-product="${code}"]`);
-                    const vatInput = document.querySelector(`.vat-input[data-product="${code}"]`);
+                    const card = this.closest('.product-card');
+                    const priceInput = card.querySelector('.price-input');
+                    const vatInput = card.querySelector('.vat-input');
 
                     const price = parseFloat(priceInput.value) || 0;
                     const vat = parseFloat(vatInput.value) || 0;
@@ -434,6 +593,8 @@
                                     products[pIndex].unit_price = price;
                                     products[pIndex].vat_rate = vat;
                                 }
+                                updateFilterCounts();
+                                setTimeout(applyFilters, 700);
                             } else {
                                 throw new Error(data.error);
                             }
