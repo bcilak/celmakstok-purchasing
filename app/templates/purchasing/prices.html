@@ -93,6 +93,40 @@
         display: block;
     }
 
+    .product-meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .product-meta-item {
+        background: #f8f9fa;
+        border: 1px solid #eef0f2;
+        border-radius: 8px;
+        padding: 8px 10px;
+        min-width: 0;
+    }
+
+    .product-meta-label {
+        display: block;
+        color: #6c757d;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+
+    .product-meta-value {
+        display: block;
+        color: #212529;
+        font-size: 0.86rem;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .empty-state {
         text-align: center;
         padding: 50px 20px;
@@ -255,6 +289,11 @@
                 product.name,
                 product.category,
                 product.material,
+                product.material_feature,
+                product.material_type,
+                product.material_property,
+                product.material_kind,
+                product.material_spec,
                 product.item_type,
                 product.type,
                 product.product_type
@@ -486,10 +525,12 @@
                 const category = escapeHtml(product.category || 'Belirtilmemiş');
                 const currentStock = product.current_stock || 0;
                 const unit = escapeHtml(product.unit || 'Adet');
-                const price = (parseFloat(product.unit_price) || 0).toFixed(2);
+                const price = (parseFloat(product.unit_price || product.unit_cost || product.cost) || 0).toFixed(2);
                 const vat = (parseFloat(product.vat_rate) || 20.0).toFixed(1);
                 const name = escapeHtml(product.name || '');
                 const code = escapeHtml(product.code || '');
+                const materialFeature = escapeHtml(product.material_feature || product.material_property || product.material || '-');
+                const materialType = escapeHtml(product.material_type || product.material_kind || product.material_spec || product.type || product.item_type || '-');
 
                 html += `
                 <div class="col-md-6 col-lg-4 col-xl-3">
@@ -502,6 +543,17 @@
                             <div class="d-flex justify-content-between mb-3 text-muted" style="font-size: 0.85rem;">
                                 <span><i class="bi bi-tag"></i> ${category}</span>
                                 <span><i class="bi bi-box"></i> Stok: <strong class="${currentStock <= 0 ? 'text-danger' : 'text-success'}">${currentStock} ${unit}</strong></span>
+                            </div>
+
+                            <div class="product-meta">
+                                <div class="product-meta-item" title="${materialFeature}">
+                                    <span class="product-meta-label">Malzeme Özelliği</span>
+                                    <span class="product-meta-value">${materialFeature}</span>
+                                </div>
+                                <div class="product-meta-item" title="${materialType}">
+                                    <span class="product-meta-label">Malzeme Cinsi</span>
+                                    <span class="product-meta-value">${materialType}</span>
+                                </div>
                             </div>
                             
                             <div class="row">
