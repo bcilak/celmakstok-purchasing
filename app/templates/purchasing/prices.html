@@ -831,7 +831,7 @@
 
                 updateFilterCounts();
                 applyFilters(false);
-                const syncNote = data.sync_errors && data.sync_errors.length ? ` Ana stokta ${data.sync_errors.length} senkron hatasi var.` : '';
+                const syncNote = data.sync_deferred ? ' Ana stok yansitma hiz icin ayrica calistirilabilir.' : (data.sync_errors && data.sync_errors.length ? ` Ana stokta ${data.sync_errors.length} senkron hatasi var.` : '');
                 showBulkStatus(`${data.updated || 0} fiyat guncellendi.${syncNote}`, data.failed ? 'warning' : 'success');
             } catch (e) {
                 console.error(e);

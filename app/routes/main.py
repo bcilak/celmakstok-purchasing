@@ -244,95 +244,86 @@ def update_prices_bulk():
     if auth_error:
         return auth_error
 
-    data = request.get_json(silent=True) or {}
-    items = data.get('items') or []
+    try:
+        data = request.get_json(silent=True) or {}
+        items = data.get('items') or []
 
-    if not isinstance(items, list) or not items:
-        return jsonify({"success": False, "error": "Guncellenecek urun listesi bos"}), 400
+        if not isinstance(items, list) or not items:
+            return jsonify({"success": False, "error": "Guncellenecek urun listesi bos"}), 400
 
-    results = []
-    changed_records = []
+        results = []
+        changed_records = []
 
-    for item in items:
-        product_code = str(item.get('product_code') or '').strip()
-        unit_price_raw = item.get('unit_price')
-        vat_rate_raw = item.get('vat_rate')
-        currency = str(item.get('currency') or 'TRY').strip().upper()[:10] or 'TRY'
+        for item in items:
+            product_code = str(item.get('product_code') or '').strip()
+            unit_price_raw = item.get('unit_price')
+            vat_rate_raw = item.get('vat_rate')
+            currency = str(item.get('currency') or 'TRY').strip().upper()[:10] or 'TRY'
 
-        if not product_code or unit_price_raw is None:
-            results.append({"product_code": product_code, "success": False, "error": "Urun kodu veya fiyat eksik"})
-            continue
+            if not product_code or unit_price_raw is None:
+                results.append({"product_code": product_code, "success": False, "error": "Urun kodu veya fiyat eksik"})
+                continue
 
-        try:
-            unit_price = float(unit_price_raw)
-        except (TypeError, ValueError):
-            results.append({"product_code": product_code, "success": False, "error": "Gecersiz fiyat formati"})
-            continue
+            try:
+                unit_price = float(unit_price_raw)
+            except (TypeError, ValueError):
+                results.append({"product_code": product_code, "success": False, "error": "Gecersiz fiyat formati"})
+                continue
 
-        if unit_price < 0:
-            results.append({"product_code": product_code, "success": False, "error": "Fiyat negatif olamaz"})
-            continue
+            if unit_price < 0:
+                results.append({"product_code": product_code, "success": False, "error": "Fiyat negatif olamaz"})
+                continue
 
-        try:
-            vat_rate = float(vat_rate_raw) if vat_rate_raw is not None else 20.0
-        except (TypeError, ValueError):
-            vat_rate = 20.0
+            try:
+                vat_rate = float(vat_rate_raw) if vat_rate_raw is not None else 20.0
+            except (TypeError, ValueError):
+                vat_rate = 20.0
 
-        price_record = ProductPrice.query.filter_by(product_code=product_code).first()
-        if price_record:
-            price_record.unit_price = unit_price
-            price_record.vat_rate = vat_rate
-            price_record.currency = currency
-        else:
-            price_record = ProductPrice(
-                product_code=product_code,
-                unit_price=unit_price,
-                vat_rate=vat_rate,
-                currency=currency
-            )
-            db.session.add(price_record)
+            price_record = ProductPrice.query.filter_by(product_code=product_code).first()
+            if price_record:
+                price_record.unit_price = unit_price
+                price_record.vat_rate = vat_rate
+                price_record.currency = currency
+            else:
+                price_record = ProductPrice(
+                    product_code=product_code,
+                    unit_price=unit_price,
+                    vat_rate=vat_rate,
+                    currency=currency
+                )
+                db.session.add(price_record)
 
-        changed_records.append((product_code, unit_price, vat_rate, currency))
-        results.append({
-            "product_code": product_code,
-            "success": True,
-            "unit_price": unit_price,
-            "vat_rate": vat_rate,
-            "currency": currency
-        })
-
-    if changed_records:
-        db.session.commit()
-    else:
-        db.session.rollback()
-
-    api_client = StockAPIClient()
-    sync_errors = []
-    for product_code, unit_price, vat_rate, currency in changed_records:
-        sync_result = api_client.update_product_price(
-            product_code=product_code,
-            new_price=unit_price,
-            vat_rate=vat_rate,
-            currency=currency
-        )
-        if not sync_result.get('success'):
-            sync_errors.append({
+            changed_records.append((product_code, unit_price, vat_rate, currency))
+            results.append({
                 "product_code": product_code,
-                "error": sync_result.get('error', 'Ana stok senkronizasyon hatasi')
+                "success": True,
+                "unit_price": unit_price,
+                "vat_rate": vat_rate,
+                "currency": currency
             })
 
-    updated = sum(1 for result in results if result.get('success'))
-    failed = len(results) - updated
+        if changed_records:
+            db.session.commit()
+        else:
+            db.session.rollback()
 
-    return jsonify({
-        "success": failed == 0,
-        "message": f"{updated} fiyat guncellendi",
-        "total": len(items),
-        "updated": updated,
-        "failed": failed,
-        "results": results,
-        "sync_errors": sync_errors[:20]
-    }), 200 if failed == 0 else 207
+        updated = sum(1 for result in results if result.get('success'))
+        failed = len(results) - updated
+
+        return jsonify({
+            "success": failed == 0,
+            "message": f"{updated} fiyat guncellendi",
+            "total": len(items),
+            "updated": updated,
+            "failed": failed,
+            "results": results,
+            "sync_errors": [],
+            "sync_deferred": True
+        }), 200 if failed == 0 else 207
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Bulk price update failed")
+        return jsonify({"success": False, "error": f"Toplu fiyat kaydi sirasinda hata olustu: {str(e)}"}), 500
 
 @main_bp.route('/api/v1/products/prices/sync-all', methods=['POST'])
 def sync_all_prices():
