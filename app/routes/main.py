@@ -2,7 +2,6 @@ from flask import Blueprint, current_app, render_template, jsonify, request
 from flask_login import login_required, current_user
 from app.models import PurchaseOrder, Supplier, ProductPrice
 from app.stock_api import StockAPIClient
-from app.utils.decorators import roles_required
 from app import db
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -21,6 +20,15 @@ def _api_key_is_valid():
         provided_key = auth_header[len('Bearer '):].strip()
 
     return provided_key == expected_key
+
+def _json_auth_error(*roles):
+    if not current_user.is_authenticated:
+        return jsonify({"success": False, "error": "Oturum suresi dolmus. Sayfayi yenileyip tekrar giris yapin."}), 401
+
+    if roles and current_user.role not in roles:
+        return jsonify({"success": False, "error": "Bu islem icin yetkiniz yok."}), 403
+
+    return None
 
 def _product_price_payload(price_record):
     return {
@@ -184,9 +192,12 @@ def get_product_price(product_code):
     return jsonify(_product_price_payload(price_record))
 
 @main_bp.route('/api/v1/products/prices', methods=['POST'])
-@login_required
 def update_price():
     """Kullanıcının girdiği yerel ürün fiyatını güncelle"""
+    auth_error = _json_auth_error()
+    if auth_error:
+        return auth_error
+
     data = request.json
     product_code = data.get('product_code')
     unit_price = data.get('unit_price')
@@ -227,10 +238,12 @@ def update_price():
     return jsonify({"success": True, "message": "Fiyat güncellendi"})
 
 @main_bp.route('/api/v1/products/prices/bulk', methods=['POST'])
-@login_required
-@roles_required('admin', 'manager')
 def update_prices_bulk():
     """Birden fazla urun fiyatini tek istekte guncelle."""
+    auth_error = _json_auth_error('admin', 'manager')
+    if auth_error:
+        return auth_error
+
     data = request.get_json(silent=True) or {}
     items = data.get('items') or []
 
@@ -322,10 +335,12 @@ def update_prices_bulk():
     }), 200 if failed == 0 else 207
 
 @main_bp.route('/api/v1/products/prices/sync-all', methods=['POST'])
-@login_required
-@roles_required('admin', 'manager')
 def sync_all_prices():
     """Kayitli tum yerel fiyatlari ana stok sistemine toplu olarak yansit."""
+    auth_error = _json_auth_error('admin', 'manager')
+    if auth_error:
+        return auth_error
+
     prices = ProductPrice.query.order_by(ProductPrice.product_code).all()
 
     if not prices:

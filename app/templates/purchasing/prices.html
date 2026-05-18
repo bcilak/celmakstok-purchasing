@@ -451,6 +451,12 @@
         let filteredProducts = [];
         const bulkSelected = new Map();
         let bulkVisibleProducts = [];
+        const apiUrls = {
+            prices: '{{ url_for("main.get_prices") }}',
+            updatePrice: '{{ url_for("main.update_price") }}',
+            bulkUpdate: '{{ url_for("main.update_prices_bulk") }}',
+            syncAll: '{{ url_for("main.sync_all_prices") }}'
+        };
 
         function normalizeText(value) {
             return (value || '').toString().toLocaleLowerCase('tr-TR');
@@ -803,7 +809,7 @@
             showBulkStatus('Secilen fiyatlar kaydediliyor...', 'info');
 
             try {
-                const res = await fetch('/api/v1/products/prices/bulk', {
+                const res = await fetch(apiUrls.bulkUpdate, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ items })
@@ -896,12 +902,12 @@
             try {
                 return JSON.parse(text);
             } catch (e) {
-                throw new Error('Sunucu JSON yerine HTML döndürdü. Sayfa yenilenmemiş olabilir; alternatif yansıtma deneniyor.');
+                throw new Error(`Sunucu JSON yerine HTML dondurdu (HTTP ${res.status}). Oturum/yetki veya endpoint problemi olabilir.`);
             }
         }
 
         async function syncPricesOneByOne() {
-            const res = await fetch('/api/v1/products/prices');
+            const res = await fetch(apiUrls.prices);
             const data = await parseJsonResponse(res);
             const savedPrices = data.prices || {};
             const entries = Object.entries(savedPrices);
@@ -915,7 +921,7 @@
 
             for (const [code, priceData] of entries) {
                 try {
-                    const updateRes = await fetch('/api/v1/products/prices', {
+                    const updateRes = await fetch(apiUrls.updatePrice, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -963,7 +969,7 @@
             syncAllStatus.className = 'alert alert-info mx-2';
             syncAllStatus.textContent = 'Kayıtlı fiyatlar ana stok sistemine gönderiliyor...';
 
-            fetch('/api/v1/products/prices/sync-all', {
+            fetch(apiUrls.syncAll, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1117,7 +1123,7 @@
                     this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Kaydediliyor...';
                     this.disabled = true;
 
-                    fetch('/api/v1/products/prices', {
+                    fetch(apiUrls.updatePrice, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
