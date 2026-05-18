@@ -177,6 +177,22 @@
     .category-filter {
         min-width: 240px;
     }
+
+    .pagination-panel {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 22px 0 8px;
+    }
+
+    .pagination-panel .page-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0 6px;
+    }
 </style>
 {% endblock %}
 
@@ -248,6 +264,8 @@
 </div>
 
 <!-- API'den Gelen Tüm Ham Veriyi JS Değişkeni Olarak Aktarma -->
+<div id="paginationControls" class="pagination-panel"></div>
+
 <script id="productsData" type="application/json">
     {{ products | tojson | safe }}
 </script>
@@ -267,6 +285,7 @@
 
         const searchInput = document.getElementById('searchInput');
         const resultsArea = document.getElementById('resultsArea');
+        const paginationControls = document.getElementById('paginationControls');
         const emptyState = document.getElementById('emptyState');
         const resultCountBadge = document.getElementById('resultCount');
         const syncAllBtn = document.getElementById('syncAllPricesBtn');
@@ -278,6 +297,9 @@
         const standardCount = document.getElementById('standardCount');
         const allCount = document.getElementById('allCount');
         let activeFilter = 'missing';
+        const pageSize = 100;
+        let currentPage = 1;
+        let filteredProducts = [];
 
         function normalizeText(value) {
             return (value || '').toString().toLocaleLowerCase('tr-TR');
@@ -361,17 +383,93 @@
             return true;
         }
 
-        function applyFilters() {
+        function applyFilters(resetPage = true) {
             const query = normalizeText(searchInput.value.trim());
             const selectedCategory = categoryFilter.value;
 
-            const matches = products.filter(product => {
+            filteredProducts = products.filter(product => {
                 const categoryMatches = !selectedCategory || product.category === selectedCategory;
                 const textMatches = !query || productText(product).includes(query);
                 return categoryMatches && textMatches && matchesActiveFilter(product);
             });
 
-            renderCards(matches.slice(0, 100), matches.length);
+            if (resetPage) {
+                currentPage = 1;
+            }
+            renderCurrentPage();
+        }
+
+        function renderCurrentPage() {
+            const totalMatchCount = filteredProducts.length;
+            const totalPages = Math.max(1, Math.ceil(totalMatchCount / pageSize));
+            currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+            const startIndex = (currentPage - 1) * pageSize;
+            const pageProducts = filteredProducts.slice(startIndex, startIndex + pageSize);
+            renderCards(pageProducts, totalMatchCount, startIndex);
+            renderPagination(totalMatchCount, totalPages, startIndex, pageProducts.length);
+        }
+
+        function renderPagination(totalMatchCount, totalPages, startIndex, pageItemCount) {
+            if (!paginationControls) return;
+            if (totalMatchCount <= pageSize) {
+                paginationControls.innerHTML = '';
+                return;
+            }
+
+            const from = startIndex + 1;
+            const to = startIndex + pageItemCount;
+            const pages = [];
+            const windowStart = Math.max(1, currentPage - 2);
+            const windowEnd = Math.min(totalPages, currentPage + 2);
+
+            pages.push(`
+                <button type="button" class="btn btn-sm btn-outline-secondary page-nav" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            `);
+
+            if (windowStart > 1) {
+                pages.push(`<button type="button" class="btn btn-sm btn-outline-secondary page-nav" data-page="1">1</button>`);
+                if (windowStart > 2) {
+                    pages.push(`<span class="text-muted px-1">...</span>`);
+                }
+            }
+
+            for (let page = windowStart; page <= windowEnd; page++) {
+                pages.push(`
+                    <button type="button" class="btn btn-sm ${page === currentPage ? 'btn-primary' : 'btn-outline-secondary'} page-nav" data-page="${page}">
+                        ${page}
+                    </button>
+                `);
+            }
+
+            if (windowEnd < totalPages) {
+                if (windowEnd < totalPages - 1) {
+                    pages.push(`<span class="text-muted px-1">...</span>`);
+                }
+                pages.push(`<button type="button" class="btn btn-sm btn-outline-secondary page-nav" data-page="${totalPages}">${totalPages}</button>`);
+            }
+
+            pages.push(`
+                <button type="button" class="btn btn-sm btn-outline-secondary page-nav" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            `);
+
+            paginationControls.innerHTML = `
+                <span class="page-info">${from}-${to} / ${totalMatchCount}</span>
+                ${pages.join('')}
+            `;
+
+            paginationControls.querySelectorAll('.page-nav').forEach(button => {
+                button.addEventListener('click', function () {
+                    const targetPage = parseInt(this.dataset.page, 10);
+                    if (!Number.isFinite(targetPage) || targetPage === currentPage) return;
+                    currentPage = targetPage;
+                    renderCurrentPage();
+                    resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
         }
 
         filterTabs.forEach(tab => {
@@ -379,14 +477,14 @@
                 activeFilter = this.dataset.filter;
                 filterTabs.forEach(item => item.classList.remove('active'));
                 this.classList.add('active');
-                applyFilters();
+                applyFilters(true);
             });
         });
 
-        categoryFilter.addEventListener('change', applyFilters);
+        categoryFilter.addEventListener('change', () => applyFilters(true));
         initializeCategoryFilter();
         updateFilterCounts();
-        applyFilters();
+        applyFilters(true);
 
         async function parseJsonResponse(res) {
             const text = await res.text();
@@ -496,14 +594,15 @@
         searchInput.addEventListener('input', function () {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-                applyFilters();
+                applyFilters(true);
             }, 300); // 300ms gecikmeli arama (performans için)
         });
 
-        function renderCards(matches, totalMatchCount) {
+        function renderCards(matches, totalMatchCount, startIndex = 0) {
             resultsArea.innerHTML = ''; // Temizle
 
             if (matches.length === 0) {
+                if (paginationControls) paginationControls.innerHTML = '';
                 // Eşleşme Yok
                 resultsArea.innerHTML = `
                     <div class="col-12">
@@ -589,14 +688,6 @@
                 `;
             });
 
-            if (totalMatchCount > 100) {
-                html += `
-                <div class="col-12 mt-3 text-center text-muted">
-                    <small><i>Sadece ilk 100 sonuç listelendi. Daha spesifik arama veya kategori seçebilirsiniz (${totalMatchCount} eşleşme bulundu).</i></small>
-                </div>
-                `;
-            }
-
             resultsArea.innerHTML = html;
             resultCountBadge.style.display = 'inline-block';
             resultCountBadge.textContent = totalMatchCount;
@@ -646,7 +737,7 @@
                                     products[pIndex].vat_rate = vat;
                                 }
                                 updateFilterCounts();
-                                setTimeout(applyFilters, 700);
+                                setTimeout(() => applyFilters(false), 700);
                             } else {
                                 throw new Error(data.error);
                             }
