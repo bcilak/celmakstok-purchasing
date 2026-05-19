@@ -479,7 +479,22 @@
             ].map(normalizeText).join(' ');
         }
 
+        function normalizedTypeText(product) {
+            return [
+                product.item_type,
+                product.type,
+                product.product_type,
+                product.material_type
+            ].map(normalizeText).join(' ').replace(/ı/g, 'i').replace(/\s+/g, '');
+        }
+
+        function isCalculatedCostProduct(product) {
+            const typeText = normalizedTypeText(product);
+            return typeText.includes('yarimamul') || typeText.includes('mamul') || typeText.includes('montaj');
+        }
+
         function hasMissingPrice(product) {
+            if (isCalculatedCostProduct(product)) return false;
             const price = parseFloat(product.unit_price);
             return !Number.isFinite(price) || price <= 0;
         }
