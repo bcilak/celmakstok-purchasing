@@ -33,3 +33,5 @@ Thumbs.db
 
 # Byte-compiled migrations cache
 migrations/versions/__pycache__/
+.env
+.env
