@@ -247,6 +247,41 @@
         background: #f8f9fa;
         z-index: 2;
     }
+
+    .view-toggle .btn.active {
+        background: #0d6efd;
+        color: #fff;
+        border-color: #0d6efd;
+    }
+
+    .price-table-wrapper {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .price-table-wrapper thead th {
+        background: #f8f9fa;
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        color: #6c757d;
+        white-space: nowrap;
+        border-bottom: 2px solid #eef0f2;
+    }
+
+    .price-table-wrapper td {
+        font-size: 0.86rem;
+        vertical-align: middle;
+    }
+
+    .price-table-wrapper .material-cell {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 </style>
 {% endblock %}
 
@@ -291,6 +326,14 @@
     <h5 class="text-secondary m-0">Ürün Listesi <span id="resultCount" class="badge bg-secondary ms-2"
             style="display: none;">0</span></h5>
     <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm view-toggle me-1" role="group" aria-label="Görünüm seçimi">
+            <button type="button" id="viewCardBtn" class="btn btn-outline-secondary active" title="Kart Görünümü">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </button>
+            <button type="button" id="viewListBtn" class="btn btn-outline-secondary" title="Liste Görünümü">
+                <i class="bi bi-list-ul"></i>
+            </button>
+        </div>
         <button type="button" id="bulkPriceBtn" class="btn btn-sm btn-primary">
             <i class="bi bi-ui-checks-grid"></i> Toplu Fiyat Guncelle
         </button>
@@ -448,6 +491,7 @@
         let activeFilter = 'missing';
         const pageSize = 100;
         let currentPage = 1;
+        let viewMode = localStorage.getItem('pricesViewMode') || 'card';
         let filteredProducts = [];
         const bulkSelected = new Map();
         let bulkVisibleProducts = [];
@@ -597,7 +641,11 @@
             currentPage = Math.min(Math.max(currentPage, 1), totalPages);
             const startIndex = (currentPage - 1) * pageSize;
             const pageProducts = filteredProducts.slice(startIndex, startIndex + pageSize);
-            renderCards(pageProducts, totalMatchCount, startIndex);
+            if (viewMode === 'list') {
+                renderTable(pageProducts, totalMatchCount, startIndex);
+            } else {
+                renderCards(pageProducts, totalMatchCount, startIndex);
+            }
             renderPagination(totalMatchCount, totalPages, startIndex, pageProducts.length);
         }
 
@@ -869,6 +917,23 @@
         categoryFilter.addEventListener('change', () => applyFilters(true));
         initializeCategoryFilter();
         updateFilterCounts();
+
+        // Kart / Liste görünüm geçişi
+        const viewCardBtn = document.getElementById('viewCardBtn');
+        const viewListBtn = document.getElementById('viewListBtn');
+        function setViewMode(mode) {
+            viewMode = mode;
+            localStorage.setItem('pricesViewMode', mode);
+            if (viewCardBtn) viewCardBtn.classList.toggle('active', mode === 'card');
+            if (viewListBtn) viewListBtn.classList.toggle('active', mode === 'list');
+            renderCurrentPage();
+        }
+        if (viewCardBtn) viewCardBtn.addEventListener('click', () => setViewMode('card'));
+        if (viewListBtn) viewListBtn.addEventListener('click', () => setViewMode('list'));
+        // Kayıtlı tercihe göre başlangıç buton durumunu senkronla
+        if (viewCardBtn) viewCardBtn.classList.toggle('active', viewMode === 'card');
+        if (viewListBtn) viewListBtn.classList.toggle('active', viewMode === 'list');
+
         applyFilters(true);
 
         if (bulkPriceBtn && bulkPriceModalEl) {
@@ -1122,14 +1187,107 @@
             attachSaveListeners();
         }
 
+        function renderTable(matches, totalMatchCount, startIndex = 0) {
+            resultsArea.innerHTML = '';
+
+            if (matches.length === 0) {
+                if (paginationControls) paginationControls.innerHTML = '';
+                resultsArea.innerHTML = `
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <i class="bi bi-emoji-frown"></i>
+                            <h4>Ürün Bulunamadı</h4>
+                            <p>Seçili sekme, kategori veya arama kriterine uygun ürün yok.</p>
+                        </div>
+                    </div>
+                `;
+                resultCountBadge.style.display = 'inline-block';
+                resultCountBadge.textContent = '0';
+                return;
+            }
+
+            let rows = '';
+            matches.forEach(product => {
+                const category = escapeHtml(product.category || 'Belirtilmemiş');
+                const currentStock = product.current_stock || 0;
+                const unit = escapeHtml(product.unit || 'Adet');
+                const price = (parseFloat(product.unit_price || product.unit_cost || product.cost) || 0).toFixed(2);
+                const vat = (parseFloat(product.vat_rate) || 20.0).toFixed(1);
+                const name = escapeHtml(product.name || '');
+                const code = escapeHtml(product.code || '');
+                const materialFeature = escapeHtml(product.material_feature || product.material_property || product.material || '-');
+                const materialType = escapeHtml(product.material_type || product.material_kind || product.material_spec || product.type || product.item_type || '-');
+
+                rows += `
+                <tr>
+                    <td>
+                        <div class="fw-semibold text-truncate" style="max-width: 260px;" title="${name}">${name}</div>
+                        <div class="small text-muted">${code}</div>
+                    </td>
+                    <td><span class="text-muted">${category}</span></td>
+                    <td class="material-cell" title="${materialFeature}">${materialFeature}</td>
+                    <td class="material-cell" title="${materialType}">${materialType}</td>
+                    <td class="text-center">
+                        <span class="fw-semibold ${currentStock <= 0 ? 'text-danger' : 'text-success'}">${currentStock} ${unit}</span>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">₺</span>
+                            <input type="number" step="0.01" class="form-control text-end price-input"
+                                data-product="${code}" value="${price}">
+                        </div>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">%</span>
+                            <input type="number" step="0.1" class="form-control text-end vat-input"
+                                data-product="${code}" value="${vat}">
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-primary w-100 save-btn fw-bold" data-product="${code}">
+                            <i class="bi bi-save"></i> Kaydet
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+
+            resultsArea.innerHTML = `
+                <div class="col-12">
+                    <div class="table-responsive price-table-wrapper">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ürün</th>
+                                    <th>Kategori</th>
+                                    <th>Malzeme Özelliği</th>
+                                    <th>Malzeme Cinsi</th>
+                                    <th class="text-center">Stok</th>
+                                    <th style="width: 150px;">Birim Fiyat (TL)</th>
+                                    <th style="width: 120px;">KDV (%)</th>
+                                    <th style="width: 120px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            resultCountBadge.style.display = 'inline-block';
+            resultCountBadge.textContent = totalMatchCount;
+
+            attachSaveListeners();
+        }
+
         function attachSaveListeners() {
             const btns = document.querySelectorAll('.save-btn');
             btns.forEach(btn => {
                 btn.addEventListener('click', function () {
                     const code = this.dataset.product;
-                    const card = this.closest('.product-card');
-                    const priceInput = card.querySelector('.price-input');
-                    const vatInput = card.querySelector('.vat-input');
+                    const container = this.closest('.product-card') || this.closest('tr');
+                    const priceInput = container.querySelector('.price-input');
+                    const vatInput = container.querySelector('.vat-input');
 
                     const price = parseFloat(priceInput.value) || 0;
                     const vat = parseFloat(vatInput.value) || 0;
