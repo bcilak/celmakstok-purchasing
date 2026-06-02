@@ -13,6 +13,8 @@ def make_shell_context():
     }
 
 if __name__ == '__main__':
+    import os
     with app.app_context():
         db.create_all()
-    app.run(debug=True, port=5001)  # Farklı port - 5001
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=True, port=port)
