@@ -16,6 +16,51 @@ from reportlab.lib.units import inch
 
 purchasing_bp = Blueprint('purchasing', __name__)
 
+
+def _to_float(value, default=0.0):
+    try:
+        return float(value if value not in [None, ''] else default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalized_type_text(product):
+    values = [
+        product.get('item_type'),
+        product.get('type'),
+        product.get('product_type'),
+        product.get('material_type'),
+    ]
+    return ' '.join(str(value or '').lower() for value in values).replace('ı', 'i').replace(' ', '')
+
+
+def _is_calculated_cost_product(product):
+    type_text = _normalized_type_text(product)
+    return any(marker in type_text for marker in ['yarimamul', 'mamul', 'montaj'])
+
+
+def _merge_local_prices(products):
+    local_prices = {p.product_code: {'price': p.unit_price, 'vat': p.vat_rate} for p in ProductPrice.query.all()}
+    merged = []
+    for product in products:
+        item = dict(product)
+        code = item.get('code')
+        if code in local_prices:
+            item['unit_price'] = local_prices[code]['price']
+            item['vat_rate'] = local_prices[code]['vat']
+        else:
+            item['unit_price'] = item.get('unit_price') or item.get('unit_cost') or item.get('price') or 0.0
+            item['vat_rate'] = item.get('vat_rate') or 20.0
+        merged.append(item)
+    return merged
+
+
+def _is_missing_price_product(product):
+    if _is_calculated_cost_product(product):
+        return False
+    return _to_float(product.get('unit_price') or product.get('unit_cost') or product.get('price')) <= 0
+
+
 @purchasing_bp.route('/')
 @login_required
 def index():
@@ -216,20 +261,7 @@ def manage_prices():
     api_response = api_client.get_all_products()
     all_products = api_response.get('products', [])
     
-    local_prices = {p.product_code: {'price': p.unit_price, 'vat': p.vat_rate} for p in ProductPrice.query.all()}
-    
-    products_with_prices = []
-    
-    for product in all_products:
-        code = product.get('code')
-        if code in local_prices:
-            product['unit_price'] = local_prices[code]['price']
-            product['vat_rate'] = local_prices[code]['vat']
-        else:
-            product['unit_price'] = product.get('unit_price') or product.get('unit_cost') or product.get('price') or 0.0
-            product['vat_rate'] = product.get('vat_rate') or 20.0
-            
-        products_with_prices.append(product)
+    products_with_prices = _merge_local_prices(all_products)
         
     # Sıralama: İsim
     products_with_prices.sort(key=lambda x: x.get('name', ''))
@@ -237,6 +269,70 @@ def manage_prices():
     return render_template('purchasing/prices.html',
                            products=products_with_prices,
                            api_connected=api_response.get('success', False))
+
+
+@purchasing_bp.route('/prices/missing/export')
+@login_required
+@roles_required('admin', 'manager')
+def export_missing_prices():
+    """Fiyati girilmemis satin alma kalemlerini detayli CSV olarak indir."""
+    api_client = StockAPIClient()
+    api_response = api_client.get_all_products()
+    products = _merge_local_prices(api_response.get('products', []))
+    missing_products = [product for product in products if _is_missing_price_product(product)]
+    missing_products.sort(key=lambda product: (product.get('type') or '', product.get('name') or ''))
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow([
+        'Urun Kodu',
+        'Urun Adi',
+        'Tip',
+        'Kategori',
+        'Birim',
+        'Mevcut Stok',
+        'Minimum Stok',
+        'Eksik Miktar',
+        'Onerilen Siparis',
+        'Aylik Kullanim',
+        'Malzeme Ozelligi',
+        'Malzeme Cinsi',
+        'Barkod/ID',
+        'Para Birimi',
+        'KDV',
+        'Not',
+    ])
+
+    for product in missing_products:
+        current_stock = _to_float(product.get('current_stock'))
+        minimum_stock = _to_float(product.get('minimum_stock'))
+        writer.writerow([
+            product.get('code', ''),
+            product.get('name', ''),
+            product.get('type') or product.get('item_type') or product.get('product_type') or '',
+            product.get('category') or product.get('category_name') or '',
+            product.get('unit') or product.get('unit_type') or '',
+            current_stock,
+            minimum_stock,
+            _to_float(product.get('shortage'), max(0, minimum_stock - current_stock)),
+            _to_float(product.get('suggested_order')),
+            _to_float(product.get('monthly_consumption')),
+            product.get('material_feature') or product.get('material_property') or product.get('material') or '',
+            product.get('material_type') or product.get('material_kind') or product.get('material_spec') or '',
+            product.get('barcode') or product.get('id') or '',
+            product.get('currency') or 'TRY',
+            _to_float(product.get('vat_rate'), 20.0),
+            product.get('notes') or product.get('note') or '',
+        ])
+
+    output.seek(0)
+    response = make_response('\ufeff' + output.getvalue())
+    response.headers['Content-Disposition'] = (
+        f'attachment; filename=fiyati_girilmemis_urunler_{datetime.now().strftime("%Y%m%d")}.csv'
+    )
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8-sig'
+    return response
+
 
 @purchasing_bp.route('/product/<product_code>')
 @login_required
