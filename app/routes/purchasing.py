@@ -226,8 +226,8 @@ def manage_prices():
             product['unit_price'] = local_prices[code]['price']
             product['vat_rate'] = local_prices[code]['vat']
         else:
-            product['unit_price'] = 0.0
-            product['vat_rate'] = 20.0
+            product['unit_price'] = product.get('unit_price') or product.get('unit_cost') or product.get('price') or 0.0
+            product['vat_rate'] = product.get('vat_rate') or 20.0
             
         products_with_prices.append(product)
         

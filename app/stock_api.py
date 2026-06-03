@@ -17,6 +17,44 @@ class StockAPIClient:
         if self.api_key:
             headers['X-API-Key'] = self.api_key
         return headers
+
+    def _normalize_product(self, product):
+        """Ana stok API'sinden gelen farkli alan adlarini satin alma ekranina uyarla."""
+        if not isinstance(product, dict):
+            return {}
+        item = dict(product)
+        price = (
+            item.get('unit_price')
+            if item.get('unit_price') not in [None, ''] else
+            item.get('unit_cost')
+        )
+        if price in [None, '']:
+            price = item.get('price')
+        try:
+            item['unit_price'] = float(price or 0)
+        except (TypeError, ValueError):
+            item['unit_price'] = 0.0
+
+        vat = item.get('vat_rate')
+        try:
+            item['vat_rate'] = float(vat if vat not in [None, ''] else 20)
+        except (TypeError, ValueError):
+            item['vat_rate'] = 20.0
+
+        item['unit'] = item.get('unit') or item.get('unit_type') or 'adet'
+        item['category'] = item.get('category') or item.get('category_name') or ''
+        item['currency'] = item.get('currency') or 'TRY'
+        return item
+
+    def _normalize_products_response(self, data):
+        product_list = data.get('products', data.get('data', [])) if isinstance(data, dict) else []
+        if isinstance(product_list, dict):
+            product_list = product_list.get('items') or product_list.get('products') or []
+        if not isinstance(product_list, list):
+            product_list = []
+        products = [self._normalize_product(product) for product in product_list]
+        products = [product for product in products if product.get('code') or product.get('name')]
+        return products
     
     def _get_mock_critical_products(self):
         """Local mode için örnek kritik ürün verileri"""
@@ -131,7 +169,7 @@ class StockAPIClient:
             if response.status_code == 200:
                 data = response.json()
                 # API formatı {'products': [...]} veya {'data': [...]} olabilir
-                product_list = data.get('products', data.get('data', []))
+                product_list = self._normalize_products_response(data)
                 return {
                     'success': True,
                     'products': product_list,
@@ -155,6 +193,8 @@ class StockAPIClient:
         last_error = None
         endpoints = (
             "/api/v1/purchasing/products",
+            "/api/v1/products",
+            "/api/products",
             "/api/v1/purchasing/critical-products",
         )
 
@@ -165,13 +205,18 @@ class StockAPIClient:
 
                 if response.status_code == 200:
                     data = response.json()
-                    product_list = data.get('products', data.get('data', []))
-                    return {
-                        'success': True,
-                        'products': product_list,
-                        'count': data.get('count', len(product_list)),
-                        'mode': 'api'
-                    }
+                    product_list = self._normalize_products_response(data)
+                    if product_list:
+                        return {
+                            'success': True,
+                            'products': product_list,
+                            'count': data.get('count', len(product_list)) if isinstance(data, dict) else len(product_list),
+                            'mode': 'api',
+                            'endpoint': endpoint
+                        }
+                    last_error = f"{endpoint} bos urun listesi dondurdu"
+                    print(f"API Empty in get_all_products ({endpoint})")
+                    continue
 
                 last_error = f"HTTP {response.status_code}"
                 print(f"API Error in get_all_products ({endpoint}): {response.status_code}")
@@ -213,7 +258,7 @@ class StockAPIClient:
             
             if response.status_code == 200:
                 data = response.json()
-                products = data.get('products', [])
+                products = self._normalize_products_response(data)
                 
                 # Ürünü listede bul
                 for product in products:
