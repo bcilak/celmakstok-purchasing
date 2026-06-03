@@ -8,6 +8,8 @@ from app import db
 from datetime import datetime, timedelta
 import io
 import csv
+import zipfile
+from xml.sax.saxutils import escape
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -59,6 +61,96 @@ def _is_missing_price_product(product):
     if _is_calculated_cost_product(product):
         return False
     return _to_float(product.get('unit_price') or product.get('unit_cost') or product.get('price')) <= 0
+
+
+def _xlsx_col_name(index):
+    name = ''
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _xlsx_cell(value, row, col, style_id=None):
+    ref = f'{_xlsx_col_name(col)}{row}'
+    style = f' s="{style_id}"' if style_id else ''
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f'<c r="{ref}"{style}><v>{value}</v></c>'
+    text = escape(str(value or ''))
+    return f'<c r="{ref}" t="inlineStr"{style}><is><t>{text}</t></is></c>'
+
+
+def _build_xlsx(headers, rows, sheet_name='Liste'):
+    data = [headers] + rows
+    col_count = len(headers)
+    row_count = len(data)
+    last_ref = f'{_xlsx_col_name(col_count)}{row_count}'
+    col_widths = []
+    for index, header in enumerate(headers):
+        max_len = len(str(header))
+        for row in rows[:500]:
+            max_len = max(max_len, len(str(row[index] if index < len(row) else '')))
+        col_widths.append(min(max(max_len + 2, 10), 45))
+
+    cols_xml = ''.join(
+        f'<col min="{idx}" max="{idx}" width="{width}" customWidth="1"/>'
+        for idx, width in enumerate(col_widths, start=1)
+    )
+    rows_xml = []
+    for row_idx, row in enumerate(data, start=1):
+        style_id = 1 if row_idx == 1 else None
+        cells = ''.join(
+            _xlsx_cell(value, row_idx, col_idx, style_id)
+            for col_idx, value in enumerate(row, start=1)
+        )
+        rows_xml.append(f'<row r="{row_idx}">{cells}</row>')
+
+    sheet_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols>{cols_xml}</cols>
+<sheetData>{''.join(rows_xml)}</sheetData>
+<autoFilter ref="A1:{last_ref}"/>
+</worksheet>'''
+
+    workbook_xml = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="{escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>'''
+
+    styles_xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+</styleSheet>'''
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('[Content_Types].xml', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>''')
+        archive.writestr('_rels/.rels', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>''')
+        archive.writestr('xl/_rels/workbook.xml.rels', '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>''')
+        archive.writestr('xl/workbook.xml', workbook_xml)
+        archive.writestr('xl/worksheets/sheet1.xml', sheet_xml)
+        archive.writestr('xl/styles.xml', styles_xml)
+    buffer.seek(0)
+    return buffer
 
 
 @purchasing_bp.route('/')
@@ -275,16 +367,14 @@ def manage_prices():
 @login_required
 @roles_required('admin', 'manager')
 def export_missing_prices():
-    """Fiyati girilmemis satin alma kalemlerini detayli CSV olarak indir."""
+    """Fiyati girilmemis satin alma kalemlerini detayli Excel olarak indir."""
     api_client = StockAPIClient()
     api_response = api_client.get_all_products()
     products = _merge_local_prices(api_response.get('products', []))
     missing_products = [product for product in products if _is_missing_price_product(product)]
     missing_products.sort(key=lambda product: (product.get('type') or '', product.get('name') or ''))
 
-    output = io.StringIO()
-    writer = csv.writer(output, delimiter=';')
-    writer.writerow([
+    headers = [
         'Urun Kodu',
         'Urun Adi',
         'Tip',
@@ -301,12 +391,13 @@ def export_missing_prices():
         'Para Birimi',
         'KDV',
         'Not',
-    ])
+    ]
 
+    rows = []
     for product in missing_products:
         current_stock = _to_float(product.get('current_stock'))
         minimum_stock = _to_float(product.get('minimum_stock'))
-        writer.writerow([
+        rows.append([
             product.get('code', ''),
             product.get('name', ''),
             product.get('type') or product.get('item_type') or product.get('product_type') or '',
@@ -325,13 +416,13 @@ def export_missing_prices():
             product.get('notes') or product.get('note') or '',
         ])
 
-    output.seek(0)
-    response = make_response('\ufeff' + output.getvalue())
-    response.headers['Content-Disposition'] = (
-        f'attachment; filename=fiyati_girilmemis_urunler_{datetime.now().strftime("%Y%m%d")}.csv'
+    output = _build_xlsx(headers, rows, sheet_name='Fiyatsiz Urunler')
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'fiyati_girilmemis_urunler_{datetime.now().strftime("%Y%m%d")}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
-    response.headers['Content-Type'] = 'text/csv; charset=utf-8-sig'
-    return response
 
 
 @purchasing_bp.route('/product/<product_code>')
